@@ -7,8 +7,6 @@ class CSVReader:
 		self._data = np.array([])
 		self._file = file
 		self._header = np.array([])
-
-	def ExtractData(self):
 		self._data = pd.read_csv(self._file)
 		
 	#data cleaning, cuts, etc.
@@ -18,7 +16,9 @@ class CSVReader:
 		self._data = self._data[self._data['label'] != -1]
 		#put extra cuts on subcluster energy, etc.	
 				
+	def GetData(self):
+		return self._data
+
 #reader = CSVReader("csv/GJets_R17_v16_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_photons_defaultv3p2.csv")
-reader = CSVReader("csv/photonSkim_test_emAlpha0p500_thresh1p000_NperGeV0p100_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_output257_v16.csv")
-reader.ExtractData()
-reader.CleanData()
+#reader = CSVReader("csv/photonSkim_test_emAlpha0p500_thresh1p000_NperGeV0p100_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_output257_v16.csv")
+#reader.CleanData()
