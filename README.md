@@ -7,4 +7,18 @@ Classifying subclusters of rechits from CMS ECAL in time and space
 	- python
 	- pandas
 	- numpy
-- if the `python` command is aliased via a login script, make sure to run scripts `python3` 
+	- tensorflow
+- build the conda environment with the associated packages by running
+```
+conda create -n [env_name] python pandas tensorflow
+```
+- activate the conda environment by running
+```
+conda activate [env_name]
+```
+- deactivate the conda environment with
+```
+conda deactivate
+```
+- if the `python` command is aliased via a login script, make sure to run scripts `python3`
+- if the conda environment is already created, you can run `conda instal [pkg]` to install additional packages from within the virtual environment
