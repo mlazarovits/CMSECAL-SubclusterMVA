@@ -14,8 +14,10 @@ nodes = [64, 64, 64]
 datashape = data.shape
 
 model = DeepNeuralNetwork(datashape[1],nodes)
-#model.BuildModel()
-#model.CompileModel()
-#model.TrainModel(data)
-#needs test data
+model.BuildModel()
+model.CompileModel()
+model.summary()
+#model.SetData(data) - cleans out unnecessary columsn (ie subcl #) and sets train/test split
+#model.TrainModel()
+#needs test data + to make ROC plots
 #model.Evaluate(test_data, batch)
