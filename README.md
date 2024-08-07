@@ -8,6 +8,8 @@ Classifying subclusters of rechits from CMS ECAL in time and space
 	- pandas
 	- numpy
 	- tensorflow
+	- matplotlib
+	- sklearn
 - build the conda environment with the associated packages by running
 ```
 conda create -n [env_name] python pandas tensorflow
@@ -41,10 +43,10 @@ libc++abi: terminating with uncaught exception of type Xbyak::Error: x2APIC is n
 ```
 This error indicates some issue with the tensorflow installation. Some cursory web-searching showed that this can happen with the versions of TF and python are not compatible. This can happen if the default version of python was used to create the environment and tensorflow was installed after environment creation, leading to incompatibilities. To ensure this doesn't happen, create the conda environment with all necessary packages,
 ```
-conda create -c "env_name" python tensorflow pandas
+conda create -c "env_name" python tensorflow pandas matplotlib scikit-learn
 ```
 To be sure of the python version, you can create a conda environment with python3.11.X with the following command
 ```
-conda create -n "env_name" python=3.11.X ipython tensorflow pandas
+conda create -n "env_name" python=3.11.X ipython tensorflow pandas matplotlib scikit-learn
 ```
 solved this issue and the model was able to be fit without any errors raising. Here, `X` is a specific version number. 
