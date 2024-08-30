@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+#add multiple files
 class CSVReader:
 	def __init__(self, file):
 		#data is a list of feature, label pairs or tuples
@@ -8,6 +9,11 @@ class CSVReader:
 		self._file = file
 		self._header = np.array([])
 		self._data = pd.read_csv(self._file)
+
+	def AddFile(self,file):
+		data = pd.read_csv(file)
+		self._data = pd.concat([self._data,data])
+
 		
 	#data cleaning, cuts, etc.
 	def CleanData(self):
