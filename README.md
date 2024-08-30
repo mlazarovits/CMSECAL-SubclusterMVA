@@ -33,7 +33,7 @@ conda deactivate
 ### Running neural network
 From the input data, the user needs to pass the input data shape to `DeepNN` constructor. (Eventually will pass data when training network).
 ```
-python runDNN.py
+python3 runDNN.py
 ```
 
 ### Troubleshooting
