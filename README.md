@@ -10,6 +10,7 @@ Classifying subclusters of rechits from CMS ECAL in time and space
 	- tensorflow
 	- matplotlib
 	- sklearn
+	- shap
 - build the conda environment with the associated packages by running
 ```
 conda create -n [env_name] python pandas tensorflow
