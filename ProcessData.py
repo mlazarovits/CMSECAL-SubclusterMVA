@@ -25,6 +25,3 @@ class CSVReader:
 	def GetData(self):
 		return self._data
 
-#reader = CSVReader("csv/GJets_R17_v16_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_photons_defaultv3p2.csv")
-#reader = CSVReader("csv/photonSkim_test_emAlpha0p500_thresh1p000_NperGeV0p100_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_output257_v16.csv")
-#reader.CleanData()
