@@ -8,13 +8,14 @@ from ProcessData import CSVReader
 #condor files
 reader = CSVReader("csv/MET_R17E_MET75_v20_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv3p4_noBHFilter.csv")
 reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-200cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
 reader.CleanData()
 data = reader.GetData()
 tot = len(data)
 sig = len(data[data["label"] == 0])
 nom = len(data[data["label"] == 1])
 BH = len(data[data["label"] == 2])
-print(tot, "subclusters, {:.2f}% sig {:.2f}% nom {:.2f}% BH".format(sig/tot,nom/tot,BH/tot))
+print(tot, "subclusters, "+str(sig)+" {:.2f}% sig "+str(nom)+" {:.2f}% nom "+str(BH)+" {:.2f}% BH".format(sig/tot,nom/tot,BH/tot))
 #EVEN OUT CLASSES - REMOVE NOM RANDOMLY TO MATCH ~2k BH SUBCLUSTER
 
 
