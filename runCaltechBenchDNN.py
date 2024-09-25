@@ -8,11 +8,8 @@ from DeepNN import DeepNeuralNetwork
 #reader.AddFile("csv/superclusterSkimNperGeV0p033_MET_AOD_Run2017E_17Nov2017_output108_v20.csv")
 
 #condor files
-#data
-reader = CSVReader("csv/MET_R17E_MET75_v20_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/DEG_R17_MET75_v20_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p4_noBHFilter.csv")
 #signal
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-250TeV_Ctau-10cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader = CSVReader("csv/GMSB_R17_MET75_v20_GMSB_L-250TeV_Ctau-10cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
 reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-400cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
 reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-600cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
 reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-1000cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
@@ -28,6 +25,20 @@ reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-100To200_AODSIM_RunIIFall17DRPr
 reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-200To400_AODSIM_RunIIFall17DRPremix1_superclusters_defaultv3p4_noBHFilter.csv")
 reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
 reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-600ToInf_AODSIM_RunIIFall17DRPremix3_superclusters_defaultv3p4_noBHFilter.csv")
+
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT50to100_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT100to200_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT200to300_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT300to500_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT500to700_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT700to1000_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT1000to1500_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT1500to2000_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT2000toInf_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+
+#data
+#reader = CSVReader("csv/MET_R17E_MET75_v20_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv3p4_noBHFilter.csv")
+#reader.AddFile("csv/DEG_R17_MET75_v20_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p4_noBHFilter.csv")
 
 reader.CleanData()
 data = reader.GetData()
@@ -47,12 +58,12 @@ BH = len(data[data["label"] == 2])
 print(tot, ("subclusters, "+str(sig)+" {:.2f}% sig "+str(nom)+" {:.2f}% nom "+str(BH)+" {:.2f}% BH").format(sig/tot,nom/tot,BH/tot))
 
 #select benchmark features to train on - R9, S_ieie, smaj, smin
-benchmark = ["Sample","Event","supercl","subcl","R9","Sietaieta","Siphiiphi","Smajor","Sminor","ecalPFClusterIsoOvPt","hcalPFClusterIsoOvPt","trkSumPtHollowConeDR03OvPt","label"]
-#skip ecal + hcal iso for now (all zeros)
-data = data[benchmark]
+benchmark = ["Sample","Event","supercl","subcl","R9","Sietaieta","Smajor","Sminor","ecalPFClusterIsoOvPt","hcalPFClusterIsoOvPt","trkSumPtHollowConeDR03OvPt","label"]
 
+
+data = data[benchmark]
 #make sure all SCs are matched to photon (no -999s)
-print("Remove SCs not matched to photons")
+print("Remove SCs that did not pass Caltech object selection")
 data = data[data.R9 != -999]
 #print((data == -999).any().any())
 tot = len(data)
@@ -86,11 +97,13 @@ nodes = [64, 64, 64] #simple-DNN
 
 model = DeepNeuralNetwork(data,nodes)
 model.BuildModel("Caltech-DNN")
+#visualize inputs
+model.VizInputs()
 model.CompileModel()
 model.summary()
 #input is TrainModel(epochs=1,oname="",int:verb=1)
 #caltech: epochs = 500, batch size = 10k, early stopping, adaptive learning rate
-model.TrainModel(5,True)
+model.TrainModel(500,viz=True,savebest=True)
 #needs test data + to make ROC plots
 model.TestModel(1,True)
 
