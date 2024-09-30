@@ -36,7 +36,7 @@ class DeepNeuralNetwork(ModelBase):
 		#TODO:binary labels for now, will have to one-hot encode for multiclass
 		y = data["label"].to_numpy()
 		#drop event + subcl cols
-		dropcols = ["Sample","Event","supercl","subcl","label"]
+		dropcols = ["sample","event","supercl","subcl","label"]
 		x = data.drop(dropcols,axis=1)
 		self._features = x.columns
 		x = x.to_numpy()
