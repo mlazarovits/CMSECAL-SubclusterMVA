@@ -21,7 +21,7 @@ class CSVReader:
 		#remove any "unmatched" labels
 		self._data = self._data[self._data['label'] != -1]
 		#remove not-signal-matched photons in GMSB sample (this is not the "bkg" we want to target)
-		rowbool = (self._data["Sample"].str.contains("GMSB")) & (self._data["label"] == 1) 
+		rowbool = (self._data["sample"].str.contains("GMSB")) & (self._data["label"] == 1) 
 		self._data = self._data.drop(self._data[rowbool].index)	 
 		#put extra cuts on subcluster energy, etc.	
 				
