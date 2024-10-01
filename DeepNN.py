@@ -1,5 +1,5 @@
 from ModelBase import ModelBase
-from keras import layers, metrics, Input, Model, activations, callbacks
+from tensorflow.keras import layers, metrics, Input, Model, activations, callbacks
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import RocCurveDisplay
