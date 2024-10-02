@@ -2,43 +2,50 @@ from ProcessData import CSVReader
 import pandas as pd
 from DeepNN import DeepNeuralNetwork
 
-#locally made
-#reader = CSVReader("csv/superclusterSkimNperGeV0p033_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_output446_v20.csv")
-#reader.AddFile("csv/superclusterSkimNperGeV0p033_GMSB_L-350TeV_Ctau-200cm_AODSIM_RunIIFall17DRPremix_output18_v20.csv")
-#reader.AddFile("csv/superclusterSkimNperGeV0p033_MET_AOD_Run2017E_17Nov2017_output108_v20.csv")
 
 #condor files
 #signal
-reader = CSVReader("csv/GMSB_R17_MET75_v20_GMSB_L-250TeV_Ctau-10cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-400cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-600cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-1000cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-0_1cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-10cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-200cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-800cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-400TeV_Ctau-800cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-400TeV_Ctau-200cm_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader = CSVReader("csv/GMSB_R17_MET75_v20_GMSB_L-250TeV_Ctau-10cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-400cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-600cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-1000cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-0_1cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-10cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-200cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-800cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-400TeV_Ctau-800cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-400TeV_Ctau-200cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
 #MC background
-reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-40To100_AODSIM_RunIIFall17DRPremix01_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-100To200_AODSIM_RunIIFall17DRPremix1_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-200To400_AODSIM_RunIIFall17DRPremix1_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-600ToInf_AODSIM_RunIIFall17DRPremix3_superclusters_defaultv3p4_noBHFilter.csv")
 
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT50to100_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT100to200_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT200to300_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT300to500_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT500to700_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT700to1000_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT1000to1500_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT1500to2000_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
-reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT2000toInf_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p4_noBHFilter.csv")
+reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-40To100_AODSIM_RunIIFall17DRPremix01_photons_defaultv3p5.csv")
+reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-100To200_AODSIM_RunIIFall17DRPremix1_photons_defaultv3p5.csv")
+reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-200To400_AODSIM_RunIIFall17DRPremix1_photons_defaultv3p5.csv")
+reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GJets_R17_MET75_v20_GJets_HT-600ToInf_AODSIM_RunIIFall17DRPremix3_photons_defaultv3p5.csv")
+
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT50to100_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT100to200_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT200to300_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT300to500_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT500to700_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT700to1000_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT1000to1500_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT1500to2000_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/QCD_R17_MET75_v20_QCD_HT2000toInf_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-400cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-600cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-300TeV_Ctau-1000cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-0_1cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-10cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-200cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-350TeV_Ctau-800cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-400TeV_Ctau-800cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
+reader.AddFile("csv/GMSB_R17_MET75_v20_GMSB_L-400TeV_Ctau-200cm_AODSIM_RunIIFall17DRPremix_photons_defaultv3p5.csv")
 
 #data
-#reader = CSVReader("csv/MET_R17E_MET75_v20_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv3p4_noBHFilter.csv")
-#reader.AddFile("csv/DEG_R17_MET75_v20_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p4_noBHFilter.csv")
+#reader = CSVReader("csv/MET_R17E_MET75_v20_MET_AOD_Run2017E_17Nov2017_photons_defaultv3p5.csv")
+#reader.AddFile("csv/DEG_R17_MET75_v20_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_photons_defaultv3p5.csv")
 
 reader.CleanData()
 data = reader.GetData()
@@ -47,6 +54,7 @@ sig = len(data[data["label"] == 0])
 nom = len(data[data["label"] == 1])
 BH = len(data[data["label"] == 2])
 print(tot, ("subclusters, "+str(sig)+" {:.2f}% sig "+str(nom)+" {:.2f}% nom "+str(BH)+" {:.2f}% BH").format(sig/tot,nom/tot,BH/tot))
+exit()
 
 #select BH to be nom (not distinguished in caltech NN)
 print("Set BH to nom")
@@ -58,7 +66,8 @@ BH = len(data[data["label"] == 2])
 print(tot, ("subclusters, "+str(sig)+" {:.2f}% sig "+str(nom)+" {:.2f}% nom "+str(BH)+" {:.2f}% BH").format(sig/tot,nom/tot,BH/tot))
 
 #select benchmark features to train on - R9, S_ieie, smaj, smin
-benchmark = ["Sample","Event","supercl","subcl","R9","Sietaieta","Smajor","Sminor","ecalPFClusterIsoOvPt","hcalPFClusterIsoOvPt","trkSumPtHollowConeDR03OvPt","label"]
+benchmark = ["sample","event","object","subcl","R9","Sietaieta","Smajor","Sminor","ecalPFClusterIsoOvPt","hcalPFClusterIsoOvPt","trkSumPtHollowConeDR03OvPt","label"]
+#benchmark = ["sample","event","object","subcl","R9","eta_sig","major_length","minor_length","ecalPFClusterIsoOvPt","hcalPFClusterIsoOvPt","trkSumPtHollowConeDR03OvPt","label"]
 
 
 data = data[benchmark]
@@ -70,9 +79,9 @@ tot = len(data)
 sig = len(data[data["label"] == 0])
 nom = len(data[data["label"] == 1])
 print(tot, ("subclusters, "+str(sig)+" {:.2f}% sig "+str(nom)+" {:.2f}% nom ").format(sig/tot,nom/tot))
-d = len(data[data["Sample"] == "METPD"]) + len(data[data["Sample"] == "notFound"]) #change to DEG when fixed
-mc = len(data[data["Sample"].str.contains("GJets")])
-gmsb = len(data[data["Sample"].str.contains("GMSB")])
+d = len(data[data["sample"] == "METPD"]) + len(data[data["sample"] == "notFound"]) #change to DEG when fixed
+mc = len(data[data["sample"].str.contains("GJets")])
+gmsb = len(data[data["sample"].str.contains("GMSB")])
 print(tot, ("subclusters, "+str(d)+" {:.2f}% data "+str(mc)+" {:.2f}% mc bkg "+str(gmsb)+" {:.2f}% gmsb").format(d/tot,mc/tot,gmsb/tot))
 
 #randomly select # sig == # nom entries
@@ -91,12 +100,17 @@ BH = len(data[data["label"] == 2])
 print(tot, ("subclusters, "+str(sig)+" {:.2f}% sig "+str(nom)+" {:.2f}% nom "+str(BH)+" {:.2f}% BH").format(sig/tot,nom/tot,BH/tot))
 print(data["label"].unique())
 
+
+
+#count # rows for specific samples
+
+
 #len(nodes) = # layers
 #nodes[i] = # nodes at ith layer
 nodes = [64, 64, 64] #simple-DNN
 
 model = DeepNeuralNetwork(data,nodes)
-model.BuildModel("Caltech-DNN")
+model.BuildModel("Caltech-DNN_subclusterObs")
 #visualize inputs
 model.VizInputs()
 model.CompileModel()
