@@ -115,7 +115,7 @@ class DeepNeuralNetwork(ModelBase):
 		plt.figure()
 		plt.plot(history.history['val_'+fname], label="val "+fname)
 		plt.plot(history.history[fname],label="train "+fname)
-		plt.title(fname)
+		plt.title(self._name+"\n"+fname)
 		plt.legend()
 		#check if output dir exists
 		print("Saving ROC plot to",self._path+"/"+fname+"."+self._form)
@@ -136,7 +136,7 @@ class DeepNeuralNetwork(ModelBase):
 		display.ax_.set(
 			xlabel="False Positive Rate",
 			ylabel="True Positive Rate",
-			title="Signal vs !signal subcluster ROC"
+			title=self._name+"\nSignal vs !signal subcluster ROC"
 		)
 		print("Saving ROC plot to",self._path+"/ROCplot."+self._form)
 		plt.savefig(self._path+"/ROCplot."+self._form,format=self._form)
