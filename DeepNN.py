@@ -26,10 +26,12 @@ class DeepNeuralNetwork(ModelBase):
 		self._lowestValLoss = 999
 		super().__init__()
 
-	def __init__(self, data, nNodes):
+	def __init__(self, data, nNodes, name = "model"):
 		self._bestModel = None
 		self._lowestValLoss = 999
 		self._form = "pdf"
+		self._name = name
+		self._path = "results/"+self._name
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
 		self._nNodes = nNodes
 		#extract inputs and labels, remove unnecessary columns
@@ -40,6 +42,7 @@ class DeepNeuralNetwork(ModelBase):
 		x = data.drop(dropcols,axis=1)
 		self._features = x.columns
 		x = x.to_numpy()
+		self.VizInputs(x,y)
 		#print("unnorm",x[0:5],max(x[:,0]))
 		##normalize data
 		scaler = MinMaxScaler()
@@ -51,15 +54,15 @@ class DeepNeuralNetwork(ModelBase):
 		self._xtrain, self._xtest, self._ytrain, self._ytrue = train_test_split(x,y,test_size=0.2,random_state=rand)
 		self._ytrain = np.asarray([ np.asarray([i]) for i in self._ytrain])
 		print(self._xtrain.shape[0],"training samples")
-		self._path = "results/"
 		#shape of input data
 		super().__init__()
 
 	def summary(self):
 		self._model.summary()
 
+
 	#fully connected network
-	def BuildModel(self,name = "model"):
+	def BuildModel(self):
 		input_layer = Input(shape=(self._xtrain.shape[1],))
 		
 		#reLu activation at internal layers
@@ -72,9 +75,7 @@ class DeepNeuralNetwork(ModelBase):
 		output_layer = layers.Dense(1,activation=activations.sigmoid)
 		
 		x = output_layer(x) 
-		self._model = Model(inputs = input_layer, outputs = x, name = name)
-		#check if output dir exists
-		self._path = "results/"+self._model.name
+		self._model = Model(inputs = input_layer, outputs = x, name = self._name)
 		if not os.path.exists(self._path):
 			os.mkdir(self._path)
 
@@ -89,14 +90,14 @@ class DeepNeuralNetwork(ModelBase):
 		)
 
 
-	def VizInputs(self):
+	def VizInputs(self,data,labels):
 		#n input X n sample
-		nInputs = len(self._xtrain[0])
+		nInputs = len(data[0])
 		inputs_bkg = [[] for i in range(nInputs)]
 		inputs_sig = [[] for i in range(nInputs)]
-		for i, x in enumerate(self._xtrain):
+		for i, x in enumerate(data):
 			for j, sample in enumerate(x):
-				if self._ytrain[i] == 0:
+				if labels[i] == 0:
 					inputs_sig[j].append(sample)
 				else:
 					inputs_bkg[j].append(sample)
@@ -152,7 +153,7 @@ class DeepNeuralNetwork(ModelBase):
 		plt.close()
 			
 
-	def TrainModel(self,epochs=1,viz=False,verb=1,savebest=False):
+	def TrainModel(self,epochs=1,batch=1000,viz=False,verb=1,savebest=False):
 		#remove old checkpoints in dir - update this to not use *	
 		files = os.listdir(self._path)
 		if any(".h5" in f for f in files):
@@ -165,7 +166,7 @@ class DeepNeuralNetwork(ModelBase):
 			#do early stopping too
 			earlystop = callbacks.EarlyStopping("val_loss",10,mode='min',start_from_epoch=80)
 		#80/20 train/val split (of training data)
-		his = self._model.fit(self._xtrain,np.array(self._ytrain),epochs=epochs,verbose=verb,validation_split=0.2,callbacks=[callback, earlystop],batch_size=1000)
+		his = self._model.fit(self._xtrain,np.array(self._ytrain),epochs=epochs,verbose=verb,validation_split=0.2,callbacks=[callback, earlystop],batch_size=batch)
 		#save model with lowest validation loss
 		if viz:
 			self.VizMetric(his,"loss")
