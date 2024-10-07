@@ -164,7 +164,7 @@ class DeepNeuralNetwork(ModelBase):
 		if savebest:
 			callback = callbacks.ModelCheckpoint(self._path+"/model_{epoch:03d}epoch_{val_loss:.2f}valloss.h5",monitor="val_loss",save_best_only=True,mode="min",initial_value_threshold=999.)
 			#do early stopping too
-			earlystop = callbacks.EarlyStopping("val_loss",10,mode='min',start_from_epoch=80)
+			earlystop = callbacks.EarlyStopping("val_loss",min_delta=0.01,mode='min',start_from_epoch=80)
 		#80/20 train/val split (of training data)
 		his = self._model.fit(self._xtrain,np.array(self._ytrain),epochs=epochs,verbose=verb,validation_split=0.2,callbacks=[callback, earlystop],batch_size=batch)
 		#save model with lowest validation loss
