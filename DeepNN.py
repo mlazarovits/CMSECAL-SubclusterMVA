@@ -32,6 +32,8 @@ class DeepNeuralNetwork(ModelBase):
 		self._form = "pdf"
 		self._name = name
 		self._path = "results/"+self._name
+		if not os.path.exists(self._path):
+			os.mkdir(self._path)
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
 		self._nNodes = nNodes
 		#extract inputs and labels, remove unnecessary columns
@@ -76,8 +78,6 @@ class DeepNeuralNetwork(ModelBase):
 		
 		x = output_layer(x) 
 		self._model = Model(inputs = input_layer, outputs = x, name = self._name)
-		if not os.path.exists(self._path):
-			os.mkdir(self._path)
 
 	#SGD optimizer
 	#cross-entropy loss (binary or categorical depending on labeling scheme)
