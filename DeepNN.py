@@ -50,7 +50,7 @@ class DeepNeuralNetwork(ModelBase):
 		scaler = MinMaxScaler()
 		scaler.fit(x)
 		x = scaler.transform(x) 
-		print("norm",x[:5],max(x[:,0]))
+		#print("norm",x[:5],max(x[:,0]))
 		#80/20 train/test split
 		rand = 43 #change to random number to randomize
 		self._xtrain, self._xtest, self._ytrain, self._ytrue = train_test_split(x,y,test_size=0.2,random_state=rand)
@@ -84,7 +84,7 @@ class DeepNeuralNetwork(ModelBase):
 	#monitor metrics: accuracy
 	def CompileModel(self):
 		self._model.compile(
-			optimizer = 'sgd',
+			optimizer = 'adam',
 			loss = 'binary_crossentropy',
 			metrics = ['accuracy']
 		)
@@ -153,7 +153,7 @@ class DeepNeuralNetwork(ModelBase):
 		plt.close()
 			
 
-	def TrainModel(self,epochs=1,batch=1000,viz=False,verb=1,savebest=False):
+	def TrainModel(self,epochs=1,batch=1000,viz=False,verb=1,savebest=False, earlystop=True):
 		#remove old checkpoints in dir - update this to not use *	
 		files = os.listdir(self._path)
 		if any(".h5" in f for f in files):
@@ -161,12 +161,16 @@ class DeepNeuralNetwork(ModelBase):
 				os.remove(file)
 			#subprocess.call("rm ./"+self._path+"/*.h5")
 		#set checkpoint to save model with lowest validation loss (Caltech)
+		callbacks_list = []
 		if savebest:
 			callback = callbacks.ModelCheckpoint(self._path+"/model_{epoch:03d}epoch_{val_loss:.2f}valloss.h5",monitor="val_loss",save_best_only=True,mode="min",initial_value_threshold=999.)
+			callbacks_list.append(callback) 
+		if earlystop:
 			#do early stopping too
-			earlystop = callbacks.EarlyStopping("val_loss",min_delta=0.01,mode='min',start_from_epoch=80)
+			earlystop_callback = callbacks.EarlyStopping("val_loss",min_delta=1e-6,mode='min',start_from_epoch=80)
+			callbacks_list.append(earlystop_callback)
 		#80/20 train/val split (of training data)
-		his = self._model.fit(self._xtrain,np.array(self._ytrain),epochs=epochs,verbose=verb,validation_split=0.2,callbacks=[callback, earlystop],batch_size=batch)
+		his = self._model.fit(self._xtrain,np.array(self._ytrain),epochs=epochs,verbose=verb,validation_split=0.2,callbacks=callbacks_list,batch_size=batch)
 		#save model with lowest validation loss
 		if viz:
 			self.VizMetric(his,"loss")
