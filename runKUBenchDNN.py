@@ -134,7 +134,7 @@ def runDNN(args):
 	network_name = "KU-DNN"
 	if args.extra != "":
 		network_name += "_"+args.extra
-	nepochs = 500
+	nepochs = 2000
 	early = True
 	if(args.network == "default"):
 		#default input set
