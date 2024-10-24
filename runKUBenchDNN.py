@@ -132,10 +132,10 @@ def runDNN(args):
 		exit()
 	
 	network_name = "KU-DNN"
-	if args.extra != "":
+	if args.extra is not None:
 		network_name += "_"+args.extra
 	nepochs = 2000
-	early = True
+	early = False
 	if(args.network == "default"):
 		#default input set
 		cols = ["sample","event","object","subcl","eta_sig","phi_sig","etaphi_cov","timeeta_cov","label"]
@@ -168,7 +168,7 @@ def runDNN(args):
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--network','-n',help="which set of inputs to run",required=True,choices=["default", "clusterShapeOnly","IsoOnly","subclusterObs","addTimeEtaCov","addTimeEtaCovEtaPhiCov"])
+	parser.add_argument('--network','-n',help="which set of inputs to run",required=True,choices=["default"])
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true')
 	parser.add_argument("--extra",'-e',help='extra string for network name')
 	args = parser.parse_args()
