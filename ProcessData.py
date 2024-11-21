@@ -13,6 +13,16 @@ class CSVReader:
 	def AddFile(self,file):
 		data = pd.read_csv(file)
 		self._data = pd.concat([self._data,data],ignore_index=True)
+
+	def PrintStats(self):
+		sig = len(self._data[self._data["label"] == 0])
+		nom = len(self._data[self._data["label"] == 1])
+		gmsb = len(self._data[self._data["sample"].str.contains("GMSB") == True])
+		gjets = len(self._data[self._data["sample"].str.contains("GJets") == True])
+		qcd = len(self._data[self._data["sample"].str.contains("QCD") == True])
+		d = len(self._data[self._data["sample"] == "METPD"]) + len(self._data[self._data["sample"] == "EGamma"]) 
+		tot = len(self._data)
+		print(" ",tot, ("subclusters, data: "+str(d)+" {:.2f}%, GJets: "+str(gjets)+" {:.2f}%, QCD "+str(qcd)+" {:.2f}%, GMSB "+str(gmsb)+" {:.2f}%").format(d/tot,gjets/tot,qcd/tot,gmsb/tot))
 	
 		
 	#data cleaning, cuts, etc.
@@ -21,41 +31,19 @@ class CSVReader:
 		#remove any "unmatched" labels
 		print("after unmatched removal")
 		self._data = self._data[self._data['label'] != -1]
-		sig = len(self._data[self._data["label"] == 0])
-		nom = len(self._data[self._data["label"] == 1])
-		gmsb = len(self._data[self._data["sample"].str.contains("GMSB") == True])
-		gjets = len(self._data[self._data["sample"].str.contains("GJets") == True])
-		qcd = len(self._data[self._data["sample"].str.contains("QCD") == True])
-		d = len(self._data[self._data["sample"] == "METPD"]) + len(self._data[self._data["sample"] == "EGamma"]) 
-		tot = len(self._data)
-		print(" ",tot, ("subclusters, data: "+str(d)+" {:.2f}%, GJets: "+str(gjets)+" {:.2f}%, QCD "+str(qcd)+" {:.2f}%, GMSB "+str(gmsb)+" {:.2f}%").format(d/tot,gjets/tot,qcd/tot,gmsb/tot))
-		
+		self.PrintStats()
+	
 		#remove not-signal-matched photons in GMSB sample (this is not the "bkg" we want to target)
 		print("after GMSB bkg removal")
 		rowbool = ((self._data["sample"].str.contains("GMSB") == True) & (self._data["label"] == 1)) 
 		self._data = self._data.drop(self._data[rowbool].index)	 
-		sig = len(self._data[self._data["label"] == 0])
-		nom = len(self._data[self._data["label"] == 1])
-		gmsb = len(self._data[self._data["sample"].str.contains("GMSB") == True])
-		gjets = len(self._data[self._data["sample"].str.contains("GJets") == True])
-		qcd = len(self._data[self._data["sample"].str.contains("QCD") == True])
-		d = len(self._data[self._data["sample"] == "METPD"]) + len(self._data[self._data["sample"] == "EGamma"]) 
-		tot = len(self._data)
-		print(" ",tot, ("subclusters, data: "+str(d)+" {:.2f}%, GJets: "+str(gjets)+" {:.2f}%, QCD "+str(qcd)+" {:.2f}%, GMSB "+str(gmsb)+" {:.2f}%").format(d/tot,gjets/tot,qcd/tot,gmsb/tot))
+		self.PrintStats()
 		
 		#put extra cuts on subcluster energy, etc.	
-		#remove nans - TODO: see why this is happening with minor_length
 		self._data.dropna()
 		print('after dropna')
-		sig = len(self._data[self._data["label"] == 0])
-		nom = len(self._data[self._data["label"] == 1])
-		gmsb = len(self._data[self._data["sample"].str.contains("GMSB") == True])
-		gjets = len(self._data[self._data["sample"].str.contains("GJets") == True])
-		qcd = len(self._data[self._data["sample"].str.contains("QCD") == True])
-		d = len(self._data[self._data["sample"] == "METPD"]) + len(self._data[self._data["sample"] == "EGamma"]) 
-		tot = len(self._data)
-		print(" ",tot, ("subclusters, data: "+str(d)+" {:.2f}%, GJets: "+str(gjets)+" {:.2f}%, QCD "+str(qcd)+" {:.2f}%, GMSB "+str(gmsb)+" {:.2f}%").format(d/tot,gjets/tot,qcd/tot,gmsb/tot))
-				
+		self.PrintStats()
+	
 	def GetData(self):
 		return self._data
 
