@@ -9,6 +9,11 @@ class CSVReader:
 		self._file = file
 		self._header = np.array([])
 		self._data = pd.read_csv(self._file)
+	
+	def __init__(self):
+		#data is a list of feature, label pairs or tuples
+		self._data = np.array([])
+		self._header = np.array([])
 
 	def AddFile(self,file):
 		data = pd.read_csv(file)
