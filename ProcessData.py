@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelBinarizer
+import matplotlib.pyplot as plt
 
 #add multiple files
 class CSVReader:
@@ -10,12 +10,16 @@ class CSVReader:
 		self._file = file
 		self._header = np.array([])
 		self._data = pd.read_csv(self._file)
+		#dictionary for integer labels to strings for plotting
+		self._labelsDict = {0 : "sig", 1 : "physics", 2 : "BH", 3 : "spike"}
 	
 	def __init__(self):
 		#data is a list of feature, label pairs or tuples
 		self._data = np.array([])
 		self._header = np.array([])
 		self._data = pd.DataFrame()
+		#dictionary for integer labels to strings for plotting
+		self._labelsDict = {0 : "sig", 1 : "physics", 2 : "BH", 3 : "spike"}
 
 	def AddFile(self,file):
 		data = pd.read_csv(file)
@@ -70,14 +74,6 @@ class CSVReader:
 			print('after dropna')
 			self.PrintStats()
 
-
-	def TransformLabels(self):
-		lb = LabelBinarizer()
-		labels = self._data["label"]
-		newlabels = lb.fit_transform(labels)
-		self._data = self._data.assign(label = pd.Series(list(newlabels)).values)
-		print(self._data["label"])
-	
 
 	def GetData(self):
 		return self._data
