@@ -2,7 +2,7 @@ from ModelBase import ModelBase
 from tensorflow.keras import layers, metrics, Input, Model, activations, callbacks
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import RocCurveDisplay
+from sklearn.metrics import RocCurveDisplay, roc_curve
 from sklearn.preprocessing import normalize, MinMaxScaler, LabelBinarizer
 import os
 import subprocess
@@ -63,7 +63,7 @@ class DeepNeuralNetwork(ModelBase):
 		#print("norm",x[:5],max(x[:,0]))
 		#80/20 train/test split
 		rand = 43 #change to random number to randomize
-		self._xtrain, self._xtest, self._ytrain, self._ytrue = train_test_split(x,y,test_size=0.2,random_state=rand)
+		self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
 		self._ytrain = np.asarray([ np.asarray(i) for i in self._ytrain])
 		#print(self._xtrain.shape[0],"training samples",self._ytrain.shape,type(self._ytrain),type(self._ytrain[0]),self._ytrain[0])
 		#shape of input data
@@ -87,7 +87,7 @@ class DeepNeuralNetwork(ModelBase):
 			x = d(x)
 
 		#sigmoid(binary)/softmax(multiclass) activation at the output layer to have interpretable probabilities
-		output_layer = layers.Dense(len(self._ytrain[0]),activation=activations.sigmoid,name="output")
+		output_layer = layers.Dense(len(self._ytrain[0]),activation=activations.softmax,name="output")
 		
 		x = output_layer(x) 
 		self._model = Model(inputs = input_layer, outputs = x, name = self._name)
@@ -172,12 +172,9 @@ class DeepNeuralNetwork(ModelBase):
 			fname = "one_vs_ones"
 			fig = plt.figure()
 			ax = plt.gca()
-			ax.set(
-				xlabel="False Positive Rate",
-				ylabel="True Positive Rate",
-				title=title
-			)
 			paircolors = {}
+			#ytrue_cat = ytrue_cat[:5]
+			#ypred = ypred[:5]
 			for (cat1, cat2) in pairs:
 				if self._catcolors[cat1] not in paircolors.values():
 					paircolors[(cat1,cat2)] = self._catcolors[cat1]
@@ -186,7 +183,7 @@ class DeepNeuralNetwork(ModelBase):
 			for idx, (cat1, cat2) in enumerate(pairs):
 				title=self._name+"\n"+self._catnames[cat1]+" vs "+self._catnames[cat2]+" subcluster ROC"
 				#y_test needs to be categorical labels
-				
+				print("cat1",cat1,self._catnames[cat1],"cat2",cat2,self._catnames[cat2])
 				cat1_mask = ytrue_cat == cat1
 				cat2_mask = ytrue_cat == cat2
 				cat12_mask = np.logical_or(cat1_mask, cat2_mask)
@@ -198,19 +195,28 @@ class DeepNeuralNetwork(ModelBase):
 				idx1 = np.flatnonzero(self._lb.classes_ == cat1)[0]
 				idx2 = np.flatnonzero(self._lb.classes_ == cat2)[0]
 
+				fpr_cat1, tpr_cat1, thresh_cat1 = roc_curve(cat1_true, ypred[cat12_mask, idx1])
+				fpr_cat2, tpr_cat2, thresh_cat2 = roc_curve(cat2_true, ypred[cat12_mask, idx2])
 				RocCurveDisplay.from_predictions(
 					cat1_true,
 					ypred[cat12_mask, idx1],
 					name=self._catnames[cat1]+" vs "+self._catnames[cat2],
 					color=paircolors[(cat1,cat2)],
-					ax=ax
+					ax=ax,
+					pos_label = 1
     				)
+			
+			ax.set(
+				xlabel="False Positive Rate",
+				ylabel="True Positive Rate",
+				title=title
+			)
 			line, = ax.plot([0, 1], [0, 1], "k--", label="Chance level (AUC = 0.5)")
 			#h, l = ax.get_legend_handles_labels()
 			#h.append(line)
 			ax.legend()
-		print("Saving ROC plot to",self._path+"/ROCplot_"+fname+"."+self._form)
-		plt.savefig(self._path+"/ROCplot"+fname+"."+self._form,format=self._form)
+		print("Saving ROC plot to",self._path+"/ROC_"+fname+"."+self._form)
+		plt.savefig(self._path+"/ROC_"+fname+"."+self._form,format=self._form)
 		plt.close()
 
 	def VizImportance(self):
@@ -222,7 +228,7 @@ class DeepNeuralNetwork(ModelBase):
 		print("Saving SHAP plot to",self._path+"/SHAPplot."+self._form)
 		plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
 		plt.close()
-			
+		
 	def VizInputs(self):
 		labels = self._lb.classes_
 		all_labels = self._lb.inverse_transform(self._ytrain)
@@ -287,11 +293,11 @@ class DeepNeuralNetwork(ModelBase):
 		self._model.load_weights(files[min(keys)])	
 		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
 		if viz:
-			if len(self._ytrue[0]) == 1:
-				self.VizROC(self._ytrue, ypred)
+			if len(self._ytest[0]) == 1:
+				self.VizROC(self._ytest, ypred)
 			else:  #multiclass
 				#plot physics bkg vs other bkgs
-				self.VizMulticlassROC(self._ytrue, ypred,1)
+				self.VizMulticlassROC(self._ytest, ypred,1)
 				#plot one-v-one for each class
-				self.VizMulticlassROC(self._ytrue, ypred,-1)
+				self.VizMulticlassROC(self._ytest, ypred,-1)
 			#self.VizImportance()	
