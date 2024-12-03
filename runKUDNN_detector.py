@@ -10,8 +10,8 @@ def runDNN(args):
 	#data
 	reader = CSVReader()
 	reader.AddFile("csv/MET_R17_AL1IsoPho_v22_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/DEG_R17_AL1IsoPho_v22_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/JetHT_R17_AL1IsoPho_v22_JetHT_AOD_Run2017F_17Nov2017_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/DEG_R17_AL1IsoPho_v22_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/JetHT_R17_AL1IsoPho_v22_JetHT_AOD_Run2017F_17Nov2017_superclusters_defaultv3p5.csv")
 	
 	#METreader = CSVReader()
 	#METreader.AddFile("csv/MET_R17_AL1IsoPho_v22_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv3p5.csv")
@@ -22,21 +22,21 @@ def runDNN(args):
 
 	#MC background
 	reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-40To100_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-40To100_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-100To200_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-200To400_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-600ToInf_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	##
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT50to100_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT100to200_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT200to300_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT300to500_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT500to700_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT700to1000_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT1000to1500_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT1500to2000_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
-	#reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT2000toInf_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-40To100_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-100To200_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-200To400_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-400To600_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/GJets_R17_AL1IsoPho_v22_GJets_HT-600ToInf_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	#
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT50to100_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT100to200_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT200to300_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT300to500_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT500to700_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT700to1000_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT1000to1500_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT1500to2000_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/QCD_R17_AL1IsoPho_v22_QCD_HT2000toInf_AODSIM_RunIIFall17DRPremix_superclusters_defaultv3p5.csv")
 	##
 	
 	
@@ -117,7 +117,7 @@ def runDNN(args):
 	network_name = "KU-DNN_detector"
 	if args.extra is not None:
 		network_name += "_"+args.extra
-	nepochs = args.nEpochs
+	nepochs = int(args.nEpochs)
 	early = False
 	if(args.network == "default"):
 		#default input set
