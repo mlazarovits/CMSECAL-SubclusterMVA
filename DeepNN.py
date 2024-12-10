@@ -1,6 +1,7 @@
 from ModelBase import ModelBase
 from tensorflow.keras import layers, metrics, Input, Model, activations, callbacks
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import RocCurveDisplay, roc_curve
 from sklearn.preprocessing import normalize, MinMaxScaler, LabelBinarizer
@@ -29,6 +30,7 @@ class DeepNeuralNetwork(ModelBase):
 		self._catcolors = {}
 		self._lb = None
 		self._scaler = None
+		self._inputHists = None
 		super().__init__()
 
 	def __init__(self, data, nNodes, name = "model"):
@@ -39,6 +41,7 @@ class DeepNeuralNetwork(ModelBase):
 		self._path = "results/"+self._name
 		self._catnames = {} 
 		self._catcolors = {}
+		self._inputHists = []
 		if not os.path.exists(self._path):
 			os.mkdir(self._path)
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
@@ -146,23 +149,28 @@ class DeepNeuralNetwork(ModelBase):
 	def VizMulticlassROC(self, ytrue, ypred, cat = -1):
 		title=""
 
+		ymin = 999
+		fig = plt.figure()
+		ax = plt.gca()
 		#one vs all
 		if cat != -1:
 			catname = self._catnames[cat] 
 			col = "pink" #also get from dict?
 			title=self._name+"\n"+catname+" vs all subcluster ROC"
 			fname = catname+"_vs_all"
-			display = RocCurveDisplay.from_predictions(
-				ytrue[:,cat],
-				ypred[:,cat],
-				name=catname+" vs rest",
-				color="pink",
-				plot_chance_level=True,
-			)
-			display.ax_.set(
-				xlabel="False Positive Rate",
-				ylabel="True Positive Rate",
-				title=title
+			
+			fpr, tpr, thresh = roc_curve(ytrue[:,cat], ypred[:, cat])
+			
+			#do 1- TPR
+			tpr = [1 - i for i in tpr]
+			if min(tpr[:-2]) < ymin:
+				ymin = min(tpr[:-2])
+			ax.plot(
+				fpr,
+				tpr,
+				linewidth=4,
+				label=catname+" vs rest",
+				color=col,
 			)
 		#do all one vs ones
 		else:
@@ -170,11 +178,7 @@ class DeepNeuralNetwork(ModelBase):
 			ytrue_cat = self._lb.inverse_transform(ytrue)
 			pairs = list(combinations(np.unique(ytrue_cat), 2))
 			fname = "one_vs_ones"
-			fig = plt.figure()
-			ax = plt.gca()
 			paircolors = {}
-			#ytrue_cat = ytrue_cat[:5]
-			#ypred = ypred[:5]
 			for (cat1, cat2) in pairs:
 				if self._catcolors[cat1] not in paircolors.values():
 					paircolors[(cat1,cat2)] = self._catcolors[cat1]
@@ -197,6 +201,20 @@ class DeepNeuralNetwork(ModelBase):
 
 				fpr_cat1, tpr_cat1, thresh_cat1 = roc_curve(cat1_true, ypred[cat12_mask, idx1])
 				fpr_cat2, tpr_cat2, thresh_cat2 = roc_curve(cat2_true, ypred[cat12_mask, idx2])
+				
+				#do 1- TPR
+				tpr_cat1 = [1 - i for i in tpr_cat1]
+				if min(tpr_cat1[:-2]) < ymin:
+					ymin = min(tpr_cat1[:-2])
+				
+				ax.plot(
+					fpr_cat1,
+					tpr_cat1,
+					linewidth=4,
+					label=self._catnames[cat1]+" vs "+self._catnames[cat2],
+					color=paircolors[(cat1,cat2)],
+				)
+				'''
 				RocCurveDisplay.from_predictions(
 					cat1_true,
 					ypred[cat12_mask, idx1],
@@ -205,16 +223,19 @@ class DeepNeuralNetwork(ModelBase):
 					ax=ax,
 					pos_label = 1
     				)
-			
-			ax.set(
-				xlabel="False Positive Rate",
-				ylabel="True Positive Rate",
-				title=title
-			)
-			line, = ax.plot([0, 1], [0, 1], "k--", label="Chance level (AUC = 0.5)")
-			#h, l = ax.get_legend_handles_labels()
-			#h.append(line)
+				'''
 			ax.legend()
+		ax.set_yscale('log')	
+		ax.grid()
+		#focus on discriminating region of interest
+		ax.set_ylim([1e-2, 5e-1])
+		ax.set_xlim([0,0.1])
+		ax.set(
+			xlabel="FPR",
+			ylabel="1 - TPR",
+			title=title
+		)
+			#line, = ax.plot([0, 1], [0, 1], "k--", label="Chance level (AUC = 0.5)")
 		print("Saving ROC plot to",self._path+"/ROC_"+fname+"."+self._form)
 		plt.savefig(self._path+"/ROC_"+fname+"."+self._form,format=self._form)
 		plt.close()
@@ -229,29 +250,6 @@ class DeepNeuralNetwork(ModelBase):
 		plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
 		plt.close()
 		
-	def VizInputs(self):
-		labels = self._lb.classes_
-		all_labels = self._lb.inverse_transform(self._ytrain)
-		inputs = [[[] for l in labels] for f in self._features]
-		xtrain = self._scaler.inverse_transform(self._xtrain)
-		for i, f in enumerate(inputs):
-			if os.path.exists(self._path+"/"+self._features[i]+"."+self._form):
-				continue
-			for j, x in enumerate(xtrain):
-				#print(i,x,self._ytrain[j],self._features[i])
-				#this sample needs to be put in j == label[k]
-				#print(self._xtrain[j],self._ytrain[j],all_labels[j])
-				lidx = np.flatnonzero(self._lb.classes_ == all_labels[j])[0]
-				#print(i,self._features[i])
-				inputs[i][lidx].append(x[i])
-			for j, l in enumerate(labels):
-				plt.hist(inputs[i][j],label=self._catnames[labels[j]],log=True,bins=50,histtype=u'step')
-			#plt.hist(x[1],label="sig",histtype=u'step',log=True,bins=50)
-			plt.title(self._features[i])
-			plt.legend()
-			print("Saving "+self._features[i]+" plot to",self._path+"/"+self._features[i]+"."+self._form)
-			plt.savefig(self._path+"/"+self._features[i]+"."+self._form,format=self._form)
-			plt.close()		
 
 	def TrainModel(self,epochs=1,batch=1000,viz=False,verb=1,savebest=False, earlystop=True):
 		#remove old checkpoints in dir - update this to not use *	
@@ -275,7 +273,6 @@ class DeepNeuralNetwork(ModelBase):
 		#save model with lowest validation loss
 		if viz:
 			self.VizMetric(his,"loss")
-			#can also add accuracy, etc.
 
 	def TestModel(self,batch_size=1,viz=False,verb=1,usebest=False):
 		#get best model
@@ -300,4 +297,78 @@ class DeepNeuralNetwork(ModelBase):
 				self.VizMulticlassROC(self._ytest, ypred,1)
 				#plot one-v-one for each class
 				self.VizMulticlassROC(self._ytest, ypred,-1)
-			#self.VizImportance()	
+			#self.VizImportance()
+			self.ValidateModel()
+
+	def VizInputs(self):
+		labels = self._lb.classes_
+		all_labels = self._lb.inverse_transform(self._ytrain)
+		inputs = [[[] for l in labels] for f in self._features]
+		xtrain = self._scaler.inverse_transform(self._xtrain)
+		for i, f in enumerate(inputs):
+			self._inputHists.append([])
+			for j, x in enumerate(xtrain):
+				#print(i,x,self._ytrain[j],self._features[i])
+				#this sample needs to be put in j == label[k]
+				#print(self._xtrain[j],self._ytrain[j],all_labels[j])
+				lidx = np.flatnonzero(self._lb.classes_ == all_labels[j])[0]
+				#print(i,self._features[i])
+				inputs[i][lidx].append(x[i])
+			for j, l in enumerate(labels):
+				ns, bins, _ = plt.hist(inputs[i][j],label=self._catnames[labels[j]],log=True,bins=50,histtype=u'step')
+				#self._inputHists[feature][label][ns, bins][bin #]
+				bindict = {}
+				bindict["ns"] = ns
+				bindict["bins"] = bins
+				self._inputHists[i].append(bindict)
+			if os.path.exists(self._path+"/"+self._features[i]+"."+self._form):
+				continue
+			plt.title(self._features[i])
+			plt.legend()
+			print("Saving "+self._features[i]+" plot to",self._path+"/"+self._features[i]+"."+self._form)
+			plt.savefig(plotname,format=self._form)
+			plt.close()		
+
+	#closure test - remake distributions of input features with weights applied to training samples
+	def ValidateModel(self):
+		samp_weights = np.array(self._model.predict(self._xtrain))
+		#possible labels
+		labels = self._lb.classes_
+		all_labels = self._lb.inverse_transform(self._ytrain)
+		inputs = [[[] for l in labels] for f in self._features]
+		xtrain = np.array(self._scaler.inverse_transform(self._xtrain))
+		for i, f in enumerate(inputs):
+			plotname = self._path+"/"+self._features[i]+"_pred."+self._form
+			fig, (ax1, ax2) = plt.subplots(nrows=2)
+			ax1.grid(True)
+			ax2.grid(True)
+			legend_elements_ax1 = [
+					Patch(fill=False,edgecolor='black',
+                        			label='pred'),
+					Patch(facecolor='black',edgecolor='black', alpha=0.5,
+                        			label='true')]
+			legend_elements_ax2 = []
+			for j, l in enumerate(labels):
+				ax1.stairs(self._inputHists[i][j]["ns"],self._inputHists[i][j]["bins"],color=self._catcolors[labels[j]],fill=True,alpha=0.5)
+				ns, bins, _ = ax1.hist(xtrain[:,i],label=self._catnames[labels[j]],weights=samp_weights[:,j],bins=self._inputHists[i][j]["bins"],histtype=u'step',color=self._catcolors[labels[j]],fill=False)
+				#replace zero values to negative number -> sets ratio to -1 -> avoids divide by zero
+				ymax = -999
+				for idx, n in enumerate(self._inputHists[i][j]["ns"]):
+					if n == 0 or ns[idx] == 0:
+						ns[idx] = 1
+						self._inputHists[i][j]["ns"][idx] = -ns[idx]
+					if n/ns[idx] > ymax:
+						ymax = n/ns[idx]
+					if np.isnan(n/ns[idx]):
+						print("idx",idx,"div",ns[idx] / n,"ns",ns[idx],"input",n)
+				ax2.scatter(bins[:-1],ns / self._inputHists[i][j]["ns"],color=self._catcolors[labels[j]],s=[8 for n in ns])
+				ax2.set_ylabel("pred/true")
+				legend_elements_ax2.append(Patch(fill=False,edgecolor=self._catcolors[labels[j]],
+                        			label=self._catnames[labels[j]]))
+			ax2.set_ylim([0,ymax]) #wont plot negative numbers -> no entry in denom
+			fig.suptitle("predicted and true "+self._features[i])
+			ax1.set_yscale('log')
+			ax1.legend(handles = legend_elements_ax1)
+			ax2.legend(handles = legend_elements_ax2)
+			print("Saving predicted "+self._features[i]+" plot to",plotname)
+			fig.savefig(plotname,format=self._form)
