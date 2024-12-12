@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 class ModelBase(ABC):
 	def __init__(self):
 		self._model = None
+		self._catnames = [] 
+		self._catcolors = [] 
 		super().__init__()
 	
 	@abstractmethod
@@ -18,6 +20,13 @@ class ModelBase(ABC):
 		if viz:
 			VizLoss(his)
 
+	def SetCategoryNames(self, catnames, catcolors = {}):
+		self._catnames = catnames
+		self._catcolors = catcolors
+	
+	def summary(self):
+		self._model.summary()
+	
 	#for dataset made from generator
 	#needs to be able to save (output) and load (input) weights
 	def TrainModel(self,train_dataset,epochs=1,batch_size=1,weights_dir="./weights/",viz:bool = False,verb=1, val_data = None, fname='fig.pdf'):

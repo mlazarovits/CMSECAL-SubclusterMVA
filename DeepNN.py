@@ -72,14 +72,6 @@ class DeepNeuralNetwork(ModelBase):
 		#shape of input data
 		super().__init__()
 
-	def summary(self):
-		self._model.summary()
-
-
-	def SetCategoryNames(self, catnames, catcolors = {}):
-		self._catnames = catnames
-		self._catcolors = catcolors
-
 	#fully connected network
 	def BuildModel(self):
 		input_layer = Input(shape=(self._xtrain.shape[1],))
