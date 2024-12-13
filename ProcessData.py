@@ -57,17 +57,6 @@ class CSVReader:
 			print("after GMSB bkg removal")
 			self.PrintStats()
 
-		#remove phys entries from data samples - want these entries to come from MC
-		rowbool = ((self._data["sample"].str.contains("METPD") == True) & (self._data["label"] == 1)) 
-		self._data = self._data.drop(self._data[rowbool].index)	 
-		rowbool = ((self._data["sample"].str.contains("JetHT") == True) & (self._data["label"] == 1)) 
-		self._data = self._data.drop(self._data[rowbool].index)	 
-		rowbool = ((self._data["sample"].str.contains("EGamma") == True) & (self._data["label"] == 1)) 
-		self._data = self._data.drop(self._data[rowbool].index)	 
-		if(printStats):
-			print("after data bkg removal")
-			self.PrintStats()
-		
 		#put extra cuts on subcluster energy, etc.	
 		self._data.dropna()
 		if(printStats):
