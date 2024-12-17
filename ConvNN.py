@@ -7,8 +7,6 @@ from sklearn.preprocessing import normalize, MinMaxScaler, LabelBinarizer
 import os
 import subprocess
 import numpy as np
-import glob
-from itertools import combinations
 
 class ConvNeuralNetwork(ModelBase):
 	def __init__(self):
@@ -165,6 +163,8 @@ class ConvNeuralNetwork(ModelBase):
 		ngrid = self._xtrain.shape[1]
 		hists2D = [[np.zeros((ngrid,ngrid)) for c in self._xtrain[0][0][0]] for l in labels] #hist needs x, y data
 		for j, x in enumerate(self._xtrain):
+			if j > 0:
+				break
 			lidx = np.flatnonzero(self._lb.classes_ == all_labels[j])[0]
 			for c, ch in enumerate(hists2D[lidx]):
 				arr = x[:,:,c]
@@ -174,12 +174,15 @@ class ConvNeuralNetwork(ModelBase):
 				#normalize histogram
 				norm = sum(hists2D[i][c].flatten())
 				hists2D[i][c] = hists2D[i][c]/norm
+				hists2D[i][c] = hists2D[i][c].transpose()
 				plotname = self._path+"/"+"CNNInputGrid_Label"+str(l)+"_Channel"+self._channels[c]+"."+self._form
 				print("label",l,"channel",c,"hist size",hists2D[i][c].shape)
 				if os.path.exists(self._path+"/CNNInput_label"+str(l)+"_channel"+str(c)+"_"+self._name+"."+self._form):
 					continue
 				plt.title("Channel: "+self._channels[c]+" Label: "+str(l))
-				plt.imshow(hists2D[i][c])
+				plt.xlabel("local ieta")
+				plt.ylabel("local iphi")
+				plt.imshow(hists2D[i][c],extent=(-0.5 - (ngrid-1)/2, 0.5 + (ngrid-1)/2, -0.5 - (ngrid-1)/2, 0.5 + (ngrid-1)/2),origin="lower")
 				plt.colorbar()
 				print("Saving",plotname)
 				plt.savefig(plotname,format=self._form)
