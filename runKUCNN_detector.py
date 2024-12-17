@@ -108,15 +108,6 @@ def runDNN(args):
 	else:
 		print("Invalid network selected",args.network)
 
-	#TODO: update args.exclude to take multiple inputs
-	if args.exclude is not None:
-		if args.exclude not in cols:
-			print("Feature to exclude",args.exclude,"not currently in selection")
-		else:
-			cols.remove(args.exclude)
-			if "+" in args.exclude:
-				args.exclude = args.exclude.replace("+","p")
-			network_name += "_excludingFeature_"+args.exclude
 
 	network_name += "_"+str(nepochs)+"epochs"
 	if(early):
@@ -130,8 +121,9 @@ def runDNN(args):
 	
 	model = ConvNeuralNetwork(data,filters,network_name,channels)
 	model.SetCategoryNames(catToName,catToColor)
-	model.BuildModel()
 	#visualize inputs - need to redo for CNN
+	model.VizInputs()
+	model.BuildModel()
 	model.CompileModel()
 	model.summary()
 	#input is TrainModel(epochs=1,oname="",int:verb=1)
@@ -146,7 +138,6 @@ def main():
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
-	parser.add_argument("--exclude",help='exclude feature from training',default=None)
 	args = parser.parse_args()
 
 	runDNN(args)
