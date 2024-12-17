@@ -161,7 +161,7 @@ def runDNN(args):
 	#input is TrainModel(epochs=1,oname="",int:verb=1)
 	model.TrainModel(nepochs,batch=100,viz=True,savebest=True,earlystop=early)
 	#needs test data + to make ROC plots
-	model.TestModel(1,True)
+	model.TestModel(1,True,validate_model=True)
 
 
 def main():
