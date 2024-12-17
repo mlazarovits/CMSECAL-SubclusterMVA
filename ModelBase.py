@@ -362,6 +362,13 @@ class ModelBase(ABC):
 		print("Directory with model checkpoint is:",checkpt_dir)
 		return checkpt_dir
 
+	def SaveModelArch(self, fname):
+		arch = self._model.to_json()
+		fname += ".json"
+		with open(fname,'w') as arch_file:
+			arch_file.write(arch)
+		print("Saved model architecture to",fname)
+
 	def GetModel(self):
 		if self._model is None:
 			print("Model not built yet")
