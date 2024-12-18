@@ -62,6 +62,28 @@ class ConvNeuralNetwork(ModelBase):
 		ngrid = np.sqrt(ngrid) #ngrid = 7
 		ngrid = int((ngrid-1)/2) #ngrid = 3
 	
+		#do normalizations
+		if "norm" in self._name:
+			#get channel to normalize
+			testname = self._name
+			norm_chs = []
+			while testname.count("norm") > 0:
+				match_idx = testname.find("norm")+4
+				normCh = testname[match_idx:match_idx+1]
+				norm_chs.append(normCh) 
+				testname = testname[match_idx+2:]
+			for ch in norm_chs:
+				norm_cols = []
+				for i in range(-ngrid,ngrid+1):
+					for j in range(-ngrid,ngrid+1):
+						norm_cols.append("CNNgrid_"+ch+"_cell"+str(i)+"_"+str(j))
+				sumcol = x[norm_cols].sum(axis=1)
+				for i in range(-ngrid,ngrid+1):
+					for j in range(-ngrid,ngrid+1):
+						x["CNNgrid_"+ch+"_cell"+str(i)+"_"+str(j)] = x["CNNgrid_"+ch+"_cell"+str(i)+"_"+str(j)].div(sumcol)
+	
+
+
 		self._scaler = [MinMaxScaler() for i in channels]
 		list0 = []	
 		##input to train_test_split is numpy array of samples, each sample is (7 x 7 x 3)	
@@ -72,15 +94,28 @@ class ConvNeuralNetwork(ModelBase):
 			list_i = [] #list of cols to zip
 			for j in range(-ngrid,ngrid+1):
 				listcols = []
+				#over all training samples
 				col_E = x["CNNgrid_E_cell"+str(i)+"_"+str(j)]
 				col_t = x["CNNgrid_t_cell"+str(i)+"_"+str(j)]
 				col_r = x["CNNgrid_r_cell"+str(i)+"_"+str(j)]
-				if "E" in channels:
-					listcols.append(col_E)
-				if "t" in channels:
-					listcols.append(col_t)
-				if "r" in channels:
-					listcols.append(col_r)
+				if "Mult" in self._name:
+					if "E" and "r" in channels:
+						col_Er = col_E.mul(col_r) 
+						listcols.append(col_Er)
+					if "E" and "t" in channels:
+						col_Et = col_E.mul(col_t) 
+						listcols.append(col_Et)
+					if "t" and "r" in channels:
+						col_tr = col_t.mul(col_r) 
+						listcols.append(col_tr)
+				else:
+					if "E" in channels:
+						listcols.append(col_E)
+					if "t" in channels:
+						listcols.append(col_t)
+					if "r" in channels:
+						listcols.append(col_r)
+			
 				col = list(zip(*listcols))
 				#print("i",i,"j",j,"total col",col[0])
 				list_i.append(np.array(col))
@@ -90,7 +125,9 @@ class ConvNeuralNetwork(ModelBase):
 			list_i = np.array(list(zip(*[l for l in list_i])))
 			#print("zip list_"+str(i),list_i.shape)
 			list0.append(list_i)
-		x = np.array(list(zip(*[i for i in list0])))
+		x = np.array(list(zip(*[i for i in list0]))) #should be size (nsamples, ngrid, ngrid, nchannels)
+		'''	
+		'''
 		#print("x",x.shape,x[0])
 		#print("channels",channels)
 					
@@ -122,11 +159,10 @@ class ConvNeuralNetwork(ModelBase):
 		#shape of input data
 		super().__init__()
 
-	#fully connected network
+	#convolutional network
 	def BuildModel(self):
-		print("xtrain",self._xtrain[0].shape)
 		input_layer = Input(shape=self._xtrain[0].shape)
-		#n filters with 5x5 kernels
+		#n filters with 3x3 kernels
 		kernel_dim = 3
 		#reLu activation at internal layers
 		conv_layers = [layers.Conv2D(n,kernel_dim,name="conv_layer"+str(i),activation=activations.relu) for i, n in enumerate(self._nNodes)]
@@ -135,7 +171,8 @@ class ConvNeuralNetwork(ModelBase):
 			x = c(x)
 		#flatten from 2D to 1D
 		x = layers.Flatten()(x)
-		x = layers.Dense(64,name="dense_layer",activation=activations.relu)(x)
+		x = layers.Dense(64,name="dense_layer_1",activation=activations.relu)(x)
+		x = layers.Dense(64,name="dense_layer_2",activation=activations.relu)(x)
 
 		#sigmoid(binary)/softmax(multiclass) activation at the output layer to have interpretable probabilities
 		output_layer = layers.Dense(len(self._ytrain[0]),activation=activations.softmax,name="output")
