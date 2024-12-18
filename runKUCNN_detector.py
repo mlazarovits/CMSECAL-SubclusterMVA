@@ -2,6 +2,7 @@ import argparse
 from ProcessData import CSVReader
 import pandas as pd
 from ConvNN import ConvNeuralNetwork
+from dualConvNN import dualConvNeuralNetwork
 
 # DNN for identifying detector background (spikes + beam halo) from physics bkg
 def runDNN(args):
@@ -90,24 +91,33 @@ def runDNN(args):
 	nepochs = int(args.nEpochs)
 	early = False
 	channels = []
-	if(args.network == "default"):
+	if(args.cols == "default"):
 		#default input set
 		channels = ["E","t","r"]
-	elif(args.network == "Eonly"):
+	elif(args.cols == "Eonly"):
 		channels = ["E"]
-		network_name += "_"+args.network
-	elif(args.network == "timeOnly"):
+		network_name += "_"+args.cols
+	elif(args.cols == "timeOnly"):
 		channels = ["t"]
-		network_name += "_"+args.network
-	elif(args.network == "rOnly"):
+		network_name += "_"+args.cols
+	elif(args.cols == "rOnly"):
 		channels = ["r"]
-		network_name += "_"+args.network
-	elif(args.network == "Er"):
+		network_name += "_"+args.cols
+	elif(args.cols == "ErOnly"):
 		channels = ["E","r"]
-		network_name += "_"+args.network
+		network_name += "_"+args.cols
+	elif(args.cols == "EMultr"):
+		channels = ["E","r"]
+		network_name += "_"+args.cols
+	elif(args.cols == "normE"):
+		channels = ["E"]
+		network_name += "_"+args.cols
+	elif(args.cols == "normEMultr"):
+		channels = ["E","r"]
+		network_name += "_"+args.cols
 	else:
-		print("Invalid network selected",args.network)
-
+		print("Invalid features selected",args.network)
+		exit()
 
 	network_name += "_"+str(nepochs)+"epochs"
 	if(early):
@@ -116,14 +126,31 @@ def runDNN(args):
 	
 	#len(filters) = # layers
 	#filters[i] = # filters at ith layer
-	filters = [64, 64, 64] 
+	if(args.arch == "default"):
+		network_name += "_"+args.arch
+		filters = [64, 64, 64] 
+		model = ConvNeuralNetwork(data,filters,network_name,channels)
+		model.BuildModel()
+	elif(args.arch == "small8"):
+		network_name += "_"+args.arch
+		filters = [8, 8, 8] 
+		model = ConvNeuralNetwork(data,filters,network_name,channels)
+		model.BuildModel()
+	elif(args.arch == "dual"):
+		network_name += "_"+args.arch
+		filters = [8, 8, 8] 
+		model = dualConvNeuralNetwork(data,filters,network_name,channels)
+		mask1 = (3,3) #spikes
+		mask2 = (3,1) #beam halo
+		model.BuildModel(mask1, mask2)
+	else:
+		print("Invalid architecture selected",args.network)
+		exit()
 	
 	
-	model = ConvNeuralNetwork(data,filters,network_name,channels)
 	model.SetCategoryNames(catToName,catToColor)
-	#visualize inputs - need to redo for CNN
+	#visualize inputs
 	model.VizInputs()
-	model.BuildModel()
 	model.CompileModel()
 	model.summary()
 	#input is TrainModel(epochs=1,oname="",int:verb=1)
@@ -134,7 +161,8 @@ def runDNN(args):
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--network','-n',help="which set of inputs to run",choices=["default","Eonly","timeOnly","rOnly","Er"],default="default")
+	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","dual"],default="default")
+	parser.add_argument('--cols','-c',help="which set of inputs to run",choices=["default","Eonly","timeOnly","rOnly","ErOnly","EMultr","normE","normEMultr"],default="default")
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
