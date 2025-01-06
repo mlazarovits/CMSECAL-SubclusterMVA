@@ -11,6 +11,7 @@ Classifying subclusters of rechits from CMS ECAL in time and space
 	- matplotlib
 	- sklearn
 	- shap
+	- frugally-deep
 - build the conda environment with the associated packages by running
 ```
 conda create -n [env_name] python pandas tensorflow
@@ -35,6 +36,12 @@ conda deactivate
 From the input data, the user needs to pass the input data shape to `DeepNN` constructor. (Eventually will pass data when training network).
 ```
 python3 runDNN.py
+```
+
+### Converting NN for C++ implementation
+Must have frugally-deep installed. Run the following
+```
+python3 frugally-deep-master/keras_export/convert_model.py [model.keras] output.json
 ```
 
 ### Troubleshooting
