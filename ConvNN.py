@@ -1,5 +1,5 @@
 from ModelBase import ModelBase
-from tensorflow.keras import layers, metrics, Input, Model, activations
+from keras import layers, metrics, Input, Model, activations
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from sklearn.model_selection import train_test_split
@@ -73,6 +73,7 @@ class ConvNeuralNetwork(ModelBase):
 				norm_chs.append(normCh) 
 				testname = testname[match_idx+2:]
 			for ch in norm_chs:
+				print("normalizing channel:",ch)
 				norm_cols = []
 				for i in range(-ngrid,ngrid+1):
 					for j in range(-ngrid,ngrid+1):
@@ -86,8 +87,9 @@ class ConvNeuralNetwork(ModelBase):
 
 		self._scaler = [MinMaxScaler() for i in channels]
 		list0 = []	
-		##input to train_test_split is numpy array of samples, each sample is (7 x 7 x 3)	
+		##input to train_test_split is numpy array of samples, each sample is (7 x 7 x nch)	
 		self._channels = channels
+		multidx = self._name.find("Mult")
 		for i in range(-ngrid,ngrid+1):
 			cols_i = x.columns.str.contains("CNNgrid_E_cell"+str(i))
 			grid_i = x.loc[:,gridcols]
@@ -98,14 +100,18 @@ class ConvNeuralNetwork(ModelBase):
 				col_E = x["CNNgrid_E_cell"+str(i)+"_"+str(j)]
 				col_t = x["CNNgrid_t_cell"+str(i)+"_"+str(j)]
 				col_r = x["CNNgrid_r_cell"+str(i)+"_"+str(j)]
-				if "Mult" in self._name:
-					if "E" and "r" in channels:
-						col_Er = col_E.mul(col_r) 
+				if multidx != -1:
+					#get channels that are multiplied together
+					multchs = [self._name[multidx+4],self._name[multidx-1]]
+					if ("E" in multchs) and ("r" in multchs):
+						col_Er = col_E.mul(col_r)
+						#locs = col_r.loc[(col_r < 1) & (col_r > 0)].index.tolist()
+						#print("colE",col_E,"colr",col_r,"colEr",col_Er)
 						listcols.append(col_Er)
-					if "E" and "t" in channels:
+					if ("E" in multchs) and ("t" in multchs):
 						col_Et = col_E.mul(col_t) 
 						listcols.append(col_Et)
-					if "t" and "r" in channels:
+					if ("t" in multchs) and ("r" in multchs):
 						col_tr = col_t.mul(col_r) 
 						listcols.append(col_tr)
 				else:
@@ -115,8 +121,8 @@ class ConvNeuralNetwork(ModelBase):
 						listcols.append(col_t)
 					if "r" in channels:
 						listcols.append(col_r)
-			
 				col = list(zip(*listcols))
+				#print("col",col,"listcols",listcols)	
 				#print("i",i,"j",j,"total col",col[0])
 				list_i.append(np.array(col))
 				#list_i.append(x["CNNgrid_E_cell"+str(i)+"_"+str(j)])
@@ -126,8 +132,6 @@ class ConvNeuralNetwork(ModelBase):
 			#print("zip list_"+str(i),list_i.shape)
 			list0.append(list_i)
 		x = np.array(list(zip(*[i for i in list0]))) #should be size (nsamples, ngrid, ngrid, nchannels)
-		'''	
-		'''
 		#print("x",x.shape,x[0])
 		#print("channels",channels)
 					
@@ -171,8 +175,8 @@ class ConvNeuralNetwork(ModelBase):
 			x = c(x)
 		#flatten from 2D to 1D
 		x = layers.Flatten()(x)
-		x = layers.Dense(64,name="dense_layer_1",activation=activations.relu)(x)
-		x = layers.Dense(64,name="dense_layer_2",activation=activations.relu)(x)
+		x = layers.Dense(self._nNodes[-1]*2,name="dense_layer_1",activation=activations.relu)(x)
+		x = layers.Dense(self._nNodes[-1]*2,name="dense_layer_2",activation=activations.relu)(x)
 
 		#sigmoid(binary)/softmax(multiclass) activation at the output layer to have interpretable probabilities
 		output_layer = layers.Dense(len(self._ytrain[0]),activation=activations.softmax,name="output")
@@ -198,7 +202,8 @@ class ConvNeuralNetwork(ModelBase):
 		labels = self._lb.classes_
 		all_labels = self._lb.inverse_transform(self._ytrain)
 		ngrid = self._xtrain.shape[1]
-		hists2D = [[np.zeros((ngrid,ngrid)) for c in self._xtrain[0][0][0]] for l in labels] #hist needs x, y data
+		hists2D = [[np.zeros((ngrid,ngrid)) for c in self._channels] for l in labels] #hist needs x, y data
+		#print("len hists2D 0",len(hists2D[0]),"len chn",len(self._channels),"xtrain000",self._xtrain[0][0][0])
 		for j, x in enumerate(self._xtrain):
 			lidx = np.flatnonzero(self._lb.classes_ == all_labels[j])[0]
 			for c, ch in enumerate(hists2D[lidx]):
@@ -206,6 +211,9 @@ class ConvNeuralNetwork(ModelBase):
 				hists2D[lidx][c] = np.sum([hists2D[lidx][c], arr],axis=0)
 		for i, l in enumerate(labels):
 			for c, ch in enumerate(hists2D[i]):
+				#skip "mult" channels
+				if "Mult" in self._channels[c]:
+					continue
 				#normalize histogram
 				norm = sum(hists2D[i][c].flatten())
 				hists2D[i][c] = hists2D[i][c]/norm
@@ -213,6 +221,7 @@ class ConvNeuralNetwork(ModelBase):
 				plotname = self._path+"/"+"CNNInputGrid_Label"+str(l)+"_Channel"+self._channels[c]+"."+self._form
 				if os.path.exists(self._path+"/CNNInput_label"+str(l)+"_channel"+str(c)+"_"+self._name+"."+self._form):
 					continue
+				print("c",c,"channel",self._channels[c])
 				plt.title("Channel: "+self._channels[c]+" Label: "+self._catnames[l])
 				plt.xlabel("local ieta")
 				plt.ylabel("local iphi")
