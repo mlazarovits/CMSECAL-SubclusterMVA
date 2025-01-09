@@ -41,7 +41,7 @@ python3 runDNN.py
 ### Converting NN for C++ implementation
 Must have frugally-deep installed. Run the following
 ```
-python3 frugally-deep-master/keras_export/convert_model.py [model.keras] output.json
+python3 [path-to]/frugally-deep-master/keras_export/convert_model.py [model.keras] output.json
 ```
 
 ### Troubleshooting
