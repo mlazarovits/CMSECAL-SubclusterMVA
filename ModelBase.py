@@ -5,7 +5,7 @@ from shap.plots import beeswarm
 import matplotlib.pyplot as plt
 #from tensorflow.keras import layers, metrics, Input, Model, activations, callbacks
 from sklearn.metrics import RocCurveDisplay, roc_curve
-from tensorflow.keras import callbacks
+from keras import callbacks
 import glob
 from itertools import combinations
 import numpy as np
@@ -289,14 +289,14 @@ class ModelBase(ABC):
 	def TrainModel(self,epochs=1,batch=1000,viz=False,verb=1,savebest=False, earlystop=True):
 		#remove old checkpoints in dir - update this to not use *	
 		files = os.listdir(self._path)
-		if any(".h5" in f for f in files):
-			for file in glob.glob(self._path+"/*.h5"):
+		if any(".keras" in f for f in files):
+			for file in glob.glob(self._path+"/*.keras"):
 				os.remove(file)
-			#subprocess.call("rm ./"+self._path+"/*.h5")
+			#subprocess.call("rm ./"+self._path+"/*.keras")
 		#set checkpoint to save model with lowest validation loss (Caltech)
 		callbacks_list = []
 		if savebest:
-			callback = callbacks.ModelCheckpoint(self._path+"/model_{epoch:03d}epoch_{val_loss:.5f}valloss.h5",monitor="val_loss",save_best_only=True,mode="min",initial_value_threshold=999.)
+			callback = callbacks.ModelCheckpoint(self._path+"/model_{epoch:03d}epoch_{val_loss:.5f}valloss.keras",monitor="val_loss",save_best_only=True,mode="min",initial_value_threshold=999.)
 			callbacks_list.append(callback) 
 		if earlystop:
 			#do early stopping too
@@ -314,7 +314,7 @@ class ModelBase(ABC):
 		files = {}
 		for root, dirs, f in os.walk(self._path):
 			for name in f:
-				if ".h5" not in name:
+				if ".keras" not in name:
 					continue
 				valloss = name[name.rfind("_")+1:name.find("valloss")]
 				files[valloss] = root+"/"+name
@@ -323,6 +323,7 @@ class ModelBase(ABC):
 		#load best model
 		print("loading model",files[min(keys)])	
 		self._model.load_weights(files[min(keys)])	
+		#save optimal model as .keras for frugally-deep
 		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
 		if viz:
 			if len(self._ytest[0]) == 1:
@@ -337,7 +338,7 @@ class ModelBase(ABC):
 			if validate_model:
 				self.ValidateModel()
 
-	
+	'''	
 	#load (input) weights
 	def LoadWeights(self,checkpt_dir):
 		print("Training network with latest weights from",checkpt_dir)
@@ -361,7 +362,7 @@ class ModelBase(ABC):
 		self._model.save_weights(checkpt_path.format(epoch=0))
 		print("Directory with model checkpoint is:",checkpt_dir)
 		return checkpt_dir
-
+	'''
 	def SaveModelArch(self, fname):
 		arch = self._model.to_json()
 		fname += ".json"

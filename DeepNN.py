@@ -1,5 +1,5 @@
 from ModelBase import ModelBase
-from tensorflow.keras import layers, metrics, Input, Model, activations
+from keras import layers, metrics, Input, Model, activations
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from sklearn.model_selection import train_test_split
