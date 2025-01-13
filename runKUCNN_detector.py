@@ -3,15 +3,17 @@ from ProcessData import CSVReader
 import pandas as pd
 from ConvNN import ConvNeuralNetwork
 from dualConvNN import dualConvNeuralNetwork
+import numpy as np
 
 # DNN for identifying detector background (spikes + beam halo) from physics bkg
 def runDNN(args):
 	#using AL1IsoPho presel s.t. there is no MET cut to bias the presence + spectrum of detector bkgs in MET PD
 	#AL1IsoPho = at least 1 isolated photon (standard presel iso)
 	#data
-	reader = CSVReader()
+	printstats = True
+	reader = CSVReader(printstats)
 	reader.AddFile("csv/MET_R17_AL1IsoPho_v22_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv4.csv")
-	#reader.AddFile("csv/DEG_R17_AL1IsoPho_v22_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p5.csv")
+	reader.AddFile("csv/DEG_R17_AL1IsoPho_v22_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p5.csv")
 	#reader.AddFile("csv/JetHT_R17_AL1IsoPho_v22_JetHT_AOD_Run2017F_17Nov2017_superclusters_defaultv3p5.csv")
 	
 	#METreader = CSVReader()
@@ -42,83 +44,35 @@ def runDNN(args):
 	
 	
 	reader.CleanData()
-	data = reader.GetData()
-
-	catToName = {1 : "physicsBkg", 2 : "beamHalo", 3 : "spike", 0 : "signal"}
-	catToColor = {1 : "green", 2 : "red", 3 : "orange", 0 : "pink"}
-	tot = len(data)
-	phys = len(data[data["label"] == 1])
-	BH = len(data[data["label"] == 2])
-	spike = len(data[data["label"] == 3])
-	print(" ",tot, ("subclusters, phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
-	#need to viz inputs before transforming labels bc relies on integer labels
+	reader.SelectClass(1,"EGamma"); #choose for a certain class (first arg) to only come from sample (second arg)
+	sublead_subcls = reader.RemoveSubleading()
+	#make model with subleading_subcls and viz inputs (make maps)
+	#drops all SCs with multiple subcls
+	#reader.LeadingOnly()
 
 	#balance classes via random undersampling - default
-	print("Even out classes")
-	sizes = {}
-	sizes[len(data[data["label"] == 1])] = 1
-	sizes[len(data[data["label"] == 2])] = 2
-	sizes[len(data[data["label"] == 3])] = 3
-
-	print(sizes)
-	nsamp = min(sizes.keys())
-	lab = sizes[nsamp] #label of min sample
+	reader.BalanceClasses([1,2,3])
+	data = reader.GetData()
 	
-	data_samples = []	
-	for l in sizes.values():
-		if l == lab:
-			continue	
-		data_samples.append(data.query('label == '+str(l)).sample(n=nsamp,random_state=111))
-	data_samples.append(data.query('label == '+str(lab)))
-	data = pd.concat(data_samples)
-	tot = len(data)
-	phys = len(data[data["label"] == 1])
-	BH = len(data[data["label"] == 2])
-	spike = len(data[data["label"] == 3])
-	print(" ",tot, ("subclusters, phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
+	catToName = {1 : "physicsBkg", 2 : "beamHalo", 3 : "spike", 0 : "signal"}
+	catToColor = {1 : "green", 2 : "red", 3 : "orange", 0 : "pink"}
+
 	
-	if(args.dryRun):
-		exit()
-
-
 		
 	#"features" to use for training
 	#for a CNN this is just a weighted map of the subclusters in eta-phi 2D space	
-	
 	network_name = "KU-CNN_detector"
 	if args.extra is not None:
 		network_name += "_"+args.extra
 	nepochs = int(args.nEpochs)
 	early = False
-	channels = []
-	if(args.cols == "default"):
-		#default input set
-		channels = ["E","t","r"]
-	elif(args.cols == "Eonly"):
-		channels = ["E"]
-		network_name += "_"+args.cols
-	elif(args.cols == "timeOnly"):
-		channels = ["t"]
-		network_name += "_"+args.cols
-	elif(args.cols == "rOnly"):
-		channels = ["r"]
-		network_name += "_"+args.cols
-	elif(args.cols == "ErOnly"):
-		channels = ["E","r"]
-		network_name += "_"+args.cols
-	elif(args.cols == "EMultr"):
-		channels = ["E","r"]
-		network_name += "_"+args.cols
-	elif(args.cols == "normE"):
-		channels = ["E"]
-		network_name += "_"+args.cols
-	elif(args.cols == "normEMultr"):
-		channels = ["E","r"]
-		network_name += "_"+args.cols
-	else:
-		print("Invalid features selected",args.network)
+	channels = args.cols
+	if any("mult" in chan for chan in channels):
+		print("Using channels",channels,"did you mean to use Mult?")
 		exit()
-
+	print("Using channels",args.cols)
+	for ch in args.cols:
+		network_name += "_"+ch
 	network_name += "_"+str(nepochs)+"epochs"
 	if(early):
 		network_name += "_earlyStop"
@@ -143,6 +97,15 @@ def runDNN(args):
 		mask1 = (3,3) #spikes
 		mask2 = (3,1) #beam halo
 		model.BuildModel(mask1, mask2)
+	elif(args.arch == "sublead"):
+		network_name += "_"+args.arch
+		filters = [8, 8, 8]
+		print("Visualizing subleading maps") 
+		model = ConvNeuralNetwork(sublead_subcls,filters,network_name,channels)
+		model.BuildModel()
+		model.SetCategoryNames(catToName,catToColor)
+		model.VizInputs()
+		exit()
 	else:
 		print("Invalid architecture selected",args.network)
 		exit()
@@ -153,6 +116,8 @@ def runDNN(args):
 	model.VizInputs()
 	model.CompileModel()
 	model.summary()
+	if(args.dryRun):
+		exit()
 	#input is TrainModel(epochs=1,oname="",int:verb=1)
 	model.TrainModel(nepochs,batch=100,viz=True,savebest=True,earlystop=early)
 	#needs test data + to make ROC plots
@@ -161,8 +126,9 @@ def runDNN(args):
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","dual"],default="default")
-	parser.add_argument('--cols','-c',help="which set of inputs to run",choices=["default","Eonly","timeOnly","rOnly","ErOnly","EMultr","normE","normEMultr"],default="default")
+	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","dual","sublead"],default="default")
+	#parser.add_argument('--cols','-c',help="which set of inputs to run",choices=["default","Eonly","timeOnly","rOnly","ErOnly","EMultr","normE","normEMultr"],nargs='+')
+	parser.add_argument('--cols','-c',help="which set of inputs to run - combination of E, r, t, xMulty, normx",nargs='+')
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
