@@ -229,4 +229,38 @@ class ConvNeuralNetwork(ModelBase):
 				plt.colorbar()
 				print("Saving",plotname)
 				plt.savefig(plotname,format=self._form)
-				plt.close()		
+				plt.close()
+
+
+	def VizModel(self):
+		#visualize filters (weights)
+		#nNodes = list of length l for l layers, each entry is f filters
+		nCh = len(self._channels)
+		for l, nf in enumerate(self._nNodes):
+			print("layer",l+1,"has",nf,"filters")
+			filters, biases = self._model.layers[l+1].get_weights()
+			#normalize to [0,1]
+			fmin, fmax = filters.min(), filters.max()
+			filters = (filters - fmin)/(fmax - fmin)
+			fig, axs = plt.subplots(nf,1,squeeze=True)
+			plotname = self._model.layers[l+1].name
+			fig.suptitle(plotname)
+			plt.tight_layout()
+			#plot each filter
+			plt_idx = 0
+			for f in range(nf):
+				fil = filters[:,:,:,f]
+				#plot each channel
+				for c, ch in enumerate(self._channels):
+					ax = axs[plt_idx]
+					ax.set(title = "filter"+str(f)+"_ch"+ch)
+					ax.set_xticks([])
+					ax.set_yticks([])
+					ax.imshow(fil[:,:,c])
+					plt_idx += 1
+			print("Saving",plotname+"."+self._form)
+			plt.savefig(plotname+"."+self._form,format=self._form)
+			plt.show()
+					 
+				
+		#visualize feature maps (weights applied)
