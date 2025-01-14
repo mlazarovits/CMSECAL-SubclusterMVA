@@ -232,7 +232,7 @@ class ConvNeuralNetwork(ModelBase):
 				plt.close()
 
 
-	def VizModel(self):
+	def VizModelWeights(self):
 		#visualize filters (weights)
 		#nNodes = list of length l for l layers, each entry is f filters
 		nCh = len(self._channels)
@@ -243,7 +243,7 @@ class ConvNeuralNetwork(ModelBase):
 			fmin, fmax = filters.min(), filters.max()
 			filters = (filters - fmin)/(fmax - fmin)
 			fig, axs = plt.subplots(nf,1,squeeze=True)
-			plotname = self._model.layers[l+1].name
+			plotname = self._model.layers[l+1].name+"_weights"
 			fig.suptitle(plotname)
 			plt.tight_layout()
 			#plot each filter
@@ -256,11 +256,59 @@ class ConvNeuralNetwork(ModelBase):
 					ax.set(title = "filter"+str(f)+"_ch"+ch)
 					ax.set_xticks([])
 					ax.set_yticks([])
-					ax.imshow(fil[:,:,c])
+					im = ax.imshow(fil[:,:,c])
+					fig.colorbar(im, ax=ax, orientation='vertical')
 					plt_idx += 1
-			print("Saving",plotname+"."+self._form)
-			plt.savefig(plotname+"."+self._form,format=self._form)
-			plt.show()
+			fig.subplots_adjust(left=0.4, right=0.6, bottom=0.1, top=0.9, wspace=0.2, hspace=0.2)
+			print("Saving",self._path+"/"+plotname+"."+self._form)
+			plt.savefig(self._path+"/"+plotname+"."+self._form,format=self._form)
 					 
-				
-		#visualize feature maps (weights applied)
+	#visualize feature maps (weights applied)
+	def VizFeatureMaps(self):
+		#randomly select image from test dataset
+		rng = np.random.default_rng(45)
+		#randomly select index
+		idxs = [i for i in range(len(self._xtest))]
+		input_im_idx = rng.choice(idxs,1)
+		input_im = self._xtest[input_im_idx]
+		input_label = self._ytest[input_im_idx]
+		input_label = self._lb.inverse_transform(input_label)[0]
+		#input_im = self._xtest
+		nCh = len(self._channels)
+		for l, nf in enumerate(self._nNodes):
+			#create model from outputs of one layer
+			model = Model(inputs = self._model.inputs,outputs = self._model.layers[l+1].output)
+			feature_map = model.predict(input_im)
+			#print("feature_map",feature_map.shape)
+			#if only one pixel in feature map, skip
+			if feature_map.shape[1] == 1 and feature_map.shape[0] == 1:
+				continue 
+			#will be nkernel feature maps per layer
+			nkernel = self._model.layers[l+1].output.shape[-1]
+			fig, axs = plt.subplots(nkernel,2)
+			plotname = self._model.layers[l+1].name+"_featuremap"
+			fig.suptitle(plotname)
+			plt.tight_layout()
+			for i in range(nkernel):
+				ax = axs[i][0]
+				ax.set(title = "kernel"+str(i))
+				ax.set_xticks([])
+				ax.set_yticks([])
+				im = ax.imshow(feature_map[0, :, :, i])
+				fig.colorbar(im, ax=ax, orientation='vertical')
+			#plot input image
+			ax_idx = int(nkernel/2)
+			ax = axs[ax_idx][1]
+			#turn off axes not used
+			for i in range(nkernel):
+				if i != ax_idx:
+					axs[i][1].axis('off')
+			ax.set(title = "input_image_"+self._catnames[input_label])
+			ax.set_xlabel("local ieta")
+			ax.set_ylabel("local iphi")
+			ax.set_xticks([])
+			ax.set_yticks([])
+			im = ax.imshow(input_im[0])
+			fig.colorbar(im, ax=ax, orientation='vertical')
+			print("Saving",self._path+"/"+plotname+"."+self._form)
+			plt.savefig(self._path+"/"+plotname+"."+self._form,format=self._form)

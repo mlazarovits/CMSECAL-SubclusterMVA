@@ -12,6 +12,8 @@ def runDNN(args):
 	#data
 	printstats = True
 	reader = CSVReader(printstats)
+	reader.AddFile("csv/MET_R17_AL1IsoPho_v24_MET_AOD_Run2017B_17Nov2017_superclusters_defaultv4_beta0-0p001_m0-0p0-0p0-0p0_W0diag-0p333-0p333-0p333_nu0-3.csv")
+	reader.AddFile("csv/MET_R17_AL1IsoPho_v24_MET_AOD_Run2017D_17Nov2017_superclusters_defaultv4_beta0-0p001_m0-0p0-0p0-0p0_W0diag-0p333-0p333-0p333_nu0-3.csv")
 	reader.AddFile("csv/MET_R17_AL1IsoPho_v22_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv4.csv")
 	reader.AddFile("csv/DEG_R17_AL1IsoPho_v22_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p5.csv")
 	#reader.AddFile("csv/JetHT_R17_AL1IsoPho_v22_JetHT_AOD_Run2017F_17Nov2017_superclusters_defaultv3p5.csv")
@@ -85,6 +87,21 @@ def runDNN(args):
 		filters = [64, 64, 64] 
 		model = ConvNeuralNetwork(data,filters,network_name,channels)
 		model.BuildModel()
+	elif(args.arch == "xsmall3"):
+		network_name += "_"+args.arch
+		filters = [3, 3] 
+		model = ConvNeuralNetwork(data,filters,network_name,channels)
+		model.BuildModel()
+	elif(args.arch == "small3"):
+		network_name += "_"+args.arch
+		filters = [3, 3, 3] 
+		model = ConvNeuralNetwork(data,filters,network_name,channels)
+		model.BuildModel()
+	elif(args.arch == "small4"):
+		network_name += "_"+args.arch
+		filters = [4, 4, 4] 
+		model = ConvNeuralNetwork(data,filters,network_name,channels)
+		model.BuildModel()
 	elif(args.arch == "small8"):
 		network_name += "_"+args.arch
 		filters = [8, 8, 8] 
@@ -120,15 +137,17 @@ def runDNN(args):
 		exit()
 	#input is TrainModel(epochs=1,oname="",int:verb=1)
 	model.TrainModel(nepochs,batch=100,viz=True,savebest=True,earlystop=early)
+	model.VizModelWeights()
+	model.VizFeatureMaps()
 	#needs test data + to make ROC plots
 	model.TestModel(1,True)
 
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","dual","sublead"],default="default")
+	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","small4","small3","xsmall3","dual","sublead"],default="default")
 	#parser.add_argument('--cols','-c',help="which set of inputs to run",choices=["default","Eonly","timeOnly","rOnly","ErOnly","EMultr","normE","normEMultr"],nargs='+')
-	parser.add_argument('--cols','-c',help="which set of inputs to run - combination of E, r, t, xMulty, normx",nargs='+')
+	parser.add_argument('--cols','-c',help="which set of inputs to run - combination of E, r, t, xMulty, normx",nargs='+',default=["EMultr"])
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
