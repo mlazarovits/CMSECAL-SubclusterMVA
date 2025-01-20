@@ -217,6 +217,7 @@ class ConvNeuralNetwork(ModelBase):
 				#normalize histogram
 				norm = sum(hists2D[i][c].flatten())
 				hists2D[i][c] = hists2D[i][c]/norm
+				#put eta/phi on right axes
 				hists2D[i][c] = hists2D[i][c].transpose()
 				plotname = self._path+"/"+"CNNInputGrid_Label"+str(l)+"_Channel"+self._channels[c]+"."+self._form
 				if os.path.exists(self._path+"/CNNInput_label"+str(l)+"_channel"+str(c)+"_"+self._name+"."+self._form):
@@ -266,7 +267,7 @@ class ConvNeuralNetwork(ModelBase):
 	#visualize feature maps (weights applied)
 	def VizFeatureMaps(self):
 		#randomly select image from test dataset
-		rng = np.random.default_rng(45)
+		rng = np.random.default_rng(43)
 		#randomly select index
 		idxs = [i for i in range(len(self._xtest))]
 		input_im_idx = rng.choice(idxs,1)
@@ -294,7 +295,7 @@ class ConvNeuralNetwork(ModelBase):
 				ax.set(title = "kernel"+str(i))
 				ax.set_xticks([])
 				ax.set_yticks([])
-				im = ax.imshow(feature_map[0, :, :, i])
+				im = ax.imshow(feature_map[0, :, :, i].T)
 				fig.colorbar(im, ax=ax, orientation='vertical')
 			#plot input image
 			ax_idx = int(nkernel/2)
@@ -308,7 +309,8 @@ class ConvNeuralNetwork(ModelBase):
 			ax.set_ylabel("local iphi")
 			ax.set_xticks([])
 			ax.set_yticks([])
-			im = ax.imshow(input_im[0])
+			print(input_im.shape,input_im[0].shape,input_im[0,:,:,0].shape)
+			im = ax.imshow(input_im[0,:,:,0].T)
 			fig.colorbar(im, ax=ax, orientation='vertical')
 			print("Saving",self._path+"/"+plotname+"."+self._form)
 			plt.savefig(self._path+"/"+plotname+"."+self._form,format=self._form)
