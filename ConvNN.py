@@ -309,7 +309,6 @@ class ConvNeuralNetwork(ModelBase):
 			ax.set_ylabel("local iphi")
 			ax.set_xticks([])
 			ax.set_yticks([])
-			print(input_im.shape,input_im[0].shape,input_im[0,:,:,0].shape)
 			im = ax.imshow(input_im[0,:,:,0].T)
 			fig.colorbar(im, ax=ax, orientation='vertical')
 			print("Saving",self._path+"/"+plotname+"."+self._form)
