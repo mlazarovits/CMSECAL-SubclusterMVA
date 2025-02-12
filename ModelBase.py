@@ -25,6 +25,10 @@ class ModelBase(ABC):
 	def CompileModel(self):
 		pass
 
+	@abstractmethod
+	def ProcessData(self, data):
+		pass
+
 	def TrainModel(self,x,y,epochs = 1,viz:bool = False,verb= 0):
 		his = self._model.fit(x,y,epochs=epochs,verbose=verb)
 		if viz:
@@ -64,7 +68,7 @@ class ModelBase(ABC):
 	
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
-	def VizROC(self, ytrue, ypred):
+	def VizROC(self, ytrue, ypred, fextra=""):
 		display = RocCurveDisplay.from_predictions(ytrue,ypred,
 			name="signal vs rest",
 			color="pink",
@@ -75,14 +79,18 @@ class ModelBase(ABC):
 			ylabel="True Positive Rate",
 			title=self._name+"\nSignal vs !signal subcluster ROC"
 		)
-		print("Saving ROC plot to",self._path+"/ROCplot."+self._form)
-		plt.savefig(self._path+"/ROCplot."+self._form,format=self._form)
+		plotname = self._path+"/ROCplot"
+		if fextra != "":
+			plotname += "_"+fextra
+		plotname += "."+self._form 
+		print("Saving ROC plot to",plotname)
+		plt.savefig(plotname,format=self._form)
 		plt.close()
 	
 	#ytrue and ypred are given in onehot form	
 	#if cat = -1, plot one vs one for all classes
 	#if cat != -1, plot cat vs all
-	def VizMulticlassROC(self, ytrue, ypred, cat = -1, zoom = False):
+	def VizMulticlassROC(self, ytrue, ypred, cat = -1, zoom = False, fextra = ""):
 		title=""
 
 		ymin = 999
@@ -176,7 +184,7 @@ class ModelBase(ABC):
 		#focus on discriminating region of interest
 		if(zoom):
 			ax.set_ylim([1e-2, 5e-1])
-			ax.set_xlim([0,0.1])
+			ax.set_xlim([0,0.05])
 			fname += "_zoom"
 		else:
 			ax.set_ylim([1e-6,1.])
@@ -187,9 +195,12 @@ class ModelBase(ABC):
 			ylabel="1 - TPR (misid rate)",
 			title=title
 		)
-			#line, = ax.plot([0, 1], [0, 1], "k--", label="Chance level (AUC = 0.5)")
-		print("Saving ROC plot to",self._path+"/ROC_"+fname+"."+self._form)
-		plt.savefig(self._path+"/ROC_"+fname+"."+self._form,format=self._form)
+		plotname = self._path+"/ROC_"+fname
+		if fextra != "":
+			plotname += "_"+fextra
+		plotname += "."+self._form 
+		print("Saving ROC plot to",plotname)
+		plt.savefig(plotname,format=self._form)
 		plt.close()
 
 
@@ -244,32 +255,38 @@ class ModelBase(ABC):
 			#self.VizImportance()
 			if validate_model:
 				self.ValidateModel()
-
-	'''	
-	#load (input) weights
-	def LoadWeights(self,checkpt_dir):
-		print("Training network with latest weights from",checkpt_dir)
-		latest = train.latest_checkpoint(checkpt_dir) 
-		self._model.load_weights(latest)
-		return
 	
-	#save (output) weights from current model
-	def SaveWeights(self, batch_size, weights_dir):
-		#save weights in nnue_training_weights
-		checkpt_path = weights_dir+"/cp-{epoch:04d}.ckpt"
-		checkpt_dir = os.path.dirname(checkpt_path)
+	def TestModel(self,data,fextra,viz=False,verb=1,usebest=False, validate_model = False):
+		#get best model
+		files = {}
+		for root, dirs, f in os.walk(self._path):
+			for name in f:
+				if ".keras" not in name:
+					continue
+				valloss = name[name.rfind("_")+1:name.find("valloss")]
+				files[valloss] = root+"/"+name
+		keys = list(files.keys())
 		
-		#create callback to save weights every epoch
-		self.cp_callback = callbacks.ModelCheckpoint(
-			filepath=checkpt_path,
-			verbose=1,
-			save_weights_only=True,
-			save_freq = batch_size)
-			#save_freq = 5*batch_size)
-		self._model.save_weights(checkpt_path.format(epoch=0))
-		print("Directory with model checkpoint is:",checkpt_dir)
-		return checkpt_dir
-	'''
+		#load best model
+		print("loading model",files[min(keys)])	
+		self._model.load_weights(files[min(keys)])	
+		#save optimal model as .keras for frugally-deep
+		#process data for testing
+		x, y = self.ProcessData(data)
+		ypred = self._model.predict(x,batch_size=1,verbose=verb)
+		if viz:
+			if len(self._ytest[0]) == 1:
+				self.VizROC(y, ypred,fextra)
+			else:  #multiclass
+				#plot physics bkg vs other bkgs
+				self.VizMulticlassROC(y, ypred,1,fextra)
+				#plot one-v-one for each class
+				self.VizMulticlassROC(y, ypred,-1,zoom=False,fextra)
+				self.VizMulticlassROC(y, ypred,-1,zoom=True,fextra)
+			#self.VizImportance()
+			if validate_model:
+				self.ValidateModel()
+
 	def SaveModelArch(self, fname):
 		arch = self._model.to_json()
 		fname += ".json"
