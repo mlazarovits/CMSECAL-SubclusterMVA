@@ -13,6 +13,7 @@ def runDNN(args):
 	printstats = True
 	reader = CSVReader(printstats)
 	reader.AddFile("csv/MET_R17_AL1IsoPho_v24_MET_AOD_Run2017B_17Nov2017_superclusters_defaultv4_beta0-0p001_m0-0p0-0p0-0p0_W0diag-0p333-0p333-0p333_nu0-3.csv")
+	reader.AddFile("csv/MET_R17_AL1IsoPho_v24_MET_AOD_Run2017C_17Nov2017_superclusters_defaultv4_beta0-0p001_m0-0p0-0p0-0p0_W0diag-0p333-0p333-0p333_nu0-3.csv")
 	reader.AddFile("csv/MET_R17_AL1IsoPho_v24_MET_AOD_Run2017D_17Nov2017_superclusters_defaultv4_beta0-0p001_m0-0p0-0p0-0p0_W0diag-0p333-0p333-0p333_nu0-3.csv")
 	reader.AddFile("csv/MET_R17_AL1IsoPho_v22_MET_AOD_Run2017E_17Nov2017_superclusters_defaultv4.csv")
 	reader.AddFile("csv/DEG_R17_AL1IsoPho_v22_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p5.csv")
@@ -137,11 +138,15 @@ def runDNN(args):
 		exit()
 	#input is TrainModel(epochs=1,oname="",int:verb=1)
 	model.TrainModel(nepochs,batch=100,viz=True,savebest=True,earlystop=early)
-	model.VizModelWeights()
-	model.VizFeatureMaps()
 	#needs test data + to make ROC plots
 	model.TestModel(1,True)
+	model.VizModelWeights()
+	model.VizFeatureMaps()
 
+	#test on GJets
+	MC_reader = CSVReader(printstats)
+	#MC_reader.AddFile()
+	#model.TestModel(MC_reader.GetData(), True,"GJets_HT400to600")
 
 def main():
 	parser = argparse.ArgumentParser()
