@@ -40,7 +40,20 @@ class DeepNeuralNetwork(ModelBase):
 			os.mkdir(self._path)
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
 		self._nNodes = nNodes
-		
+	
+		x, y = self.ProcessData(data)
+		#print("norm",x[:5],max(x[:,0]))
+		#80/20 train/test split
+		rand = 43 #change to random number to randomize
+		self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
+		self._ytrain = np.asarray([ np.asarray(i) for i in self._ytrain])
+		#print(self._xtrain.shape[0],"training samples",self._ytrain.shape,type(self._ytrain),type(self._ytrain[0]),self._ytrain[0])
+	
+		#shape of input data
+		super().__init__()
+
+
+	def ProcessData(self, data):
 		self._lb = LabelBinarizer()
 		labels = data["label"]
 		y = self._lb.fit_transform(labels)
@@ -57,14 +70,7 @@ class DeepNeuralNetwork(ModelBase):
 		self._scaler = MinMaxScaler()
 		self._scaler.fit(x)
 		x = self._scaler.transform(x) 
-		#print("norm",x[:5],max(x[:,0]))
-		#80/20 train/test split
-		rand = 43 #change to random number to randomize
-		self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
-		self._ytrain = np.asarray([ np.asarray(i) for i in self._ytrain])
-		#print(self._xtrain.shape[0],"training samples",self._ytrain.shape,type(self._ytrain),type(self._ytrain[0]),self._ytrain[0])
-		#shape of input data
-		super().__init__()
+		return x, y
 
 	#fully connected network
 	def BuildModel(self):
