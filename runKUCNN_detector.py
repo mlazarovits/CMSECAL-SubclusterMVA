@@ -143,9 +143,8 @@ def runDNN(args):
 	model.VizModelWeights()
 	model.VizFeatureMaps()
 
-	#test on GJets
-	MC_reader = CSVReader(printstats)
-	#MC_reader.AddFile()
+	#test on JetHT
+	#jetHT_reader = CSVReader(printstats)
 	#model.TestModel(MC_reader.GetData(), True,"GJets_HT400to600")
 
 def main():
