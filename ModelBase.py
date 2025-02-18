@@ -281,8 +281,8 @@ class ModelBase(ABC):
 				#plot physics bkg vs other bkgs
 				self.VizMulticlassROC(y, ypred,1,fextra)
 				#plot one-v-one for each class
-				self.VizMulticlassROC(y, ypred,-1,zoom=False,fextra)
-				self.VizMulticlassROC(y, ypred,-1,zoom=True,fextra)
+				self.VizMulticlassROC(y, ypred,-1,False,fextra)
+				self.VizMulticlassROC(y, ypred,-1,True,fextra)
 			#self.VizImportance()
 			if validate_model:
 				self.ValidateModel()
