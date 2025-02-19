@@ -145,7 +145,7 @@ def runDNN(args):
 
 	#test on JetHT
 	#jetHT_reader = CSVReader(printstats)
-	#model.TestModel(MC_reader.GetData(), True,"GJets_HT400to600")
+	#model.TestModel_data(MC_reader.GetData(), True,"GJets_HT400to600")
 
 def main():
 	parser = argparse.ArgumentParser()
