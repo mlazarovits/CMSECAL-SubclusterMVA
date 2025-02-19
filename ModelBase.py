@@ -131,6 +131,7 @@ class ModelBase(ABC):
 					paircolors[(cat1,cat2)] = self._catcolors[cat2]
 			for idx, (cat1, cat2) in enumerate(pairs):
 				#y_test needs to be categorical labels
+				#only focus on the 2 categories under analysis rn - hence logical or
 				cat1_mask = ytrue_cat == cat1
 				cat2_mask = ytrue_cat == cat2
 				cat12_mask = np.logical_or(cat1_mask, cat2_mask)
@@ -149,7 +150,9 @@ class ModelBase(ABC):
 				tpr_cat1 = [1 - i for i in tpr_cat1]
 				if min(tpr_cat1[:-2]) < ymin:
 					ymin = min(tpr_cat1[:-2])
-	
+				#print("fpr, tpr, thresh for cat 2",list(zip(fpr_cat1, tpr_cat1, thresh_cat2)))
+				#print("fpr, tpr, thresh for cat 1",list(zip(fpr_cat1, tpr_cat1, thresh_cat1)))
+
 				#get FPR for 1-tpr (misid) ~ 0.01
 				#find index of entry in tpr for element that is closest to 0.01
 				mindiff = 999
@@ -159,7 +162,16 @@ class ModelBase(ABC):
 					if diff < mindiff:
 						mindiff = diff
 						bestIdx = i
-				print("cat1",cat1,self._catnames[cat1],"cat2",cat2,self._catnames[cat2],"fpr",fpr_cat1[bestIdx],"tpr",tpr_cat1[bestIdx])
+				print("cat1",cat1,self._catnames[cat1],"fpr",fpr_cat1[bestIdx],"1-tpr",tpr_cat1[bestIdx],"thresh cat1",thresh_cat1[bestIdx])
+				
+				mindiff = 999
+				bestIdx = 0
+				for i, tpr in enumerate(tpr_cat2):
+					diff = abs(tpr - 0.01)
+					if diff < mindiff:
+						mindiff = diff
+						bestIdx = i
+				print("cat2",cat2,self._catnames[cat2],"fpr",fpr_cat2[bestIdx],"1-tpr",tpr_cat2[bestIdx],"thresh cat2",thresh_cat2[bestIdx])
 					
 				ax.plot(
 					fpr_cat1,
@@ -256,7 +268,7 @@ class ModelBase(ABC):
 			if validate_model:
 				self.ValidateModel()
 	
-	def TestModel(self,data,fextra,viz=False,verb=1,usebest=False, validate_model = False):
+	def TestModel_data(self,data,fextra,viz=False,verb=1,usebest=False, validate_model = False):
 		#get best model
 		files = {}
 		for root, dirs, f in os.walk(self._path):
