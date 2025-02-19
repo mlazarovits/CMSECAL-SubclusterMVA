@@ -41,6 +41,7 @@ class ConvNeuralNetwork(ModelBase):
 			os.mkdir(self._path)
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
 		self._nNodes = nNodes
+		self._channels = channels
 	
 		x, y = self.ProcessData(data)
 	
@@ -96,10 +97,9 @@ class ConvNeuralNetwork(ModelBase):
 						x["CNNgrid_"+ch+"_cell"+str(i)+"_"+str(j)] = x["CNNgrid_"+ch+"_cell"+str(i)+"_"+str(j)].div(sumcol)
 	
 
-		self._scaler = [MinMaxScaler() for i in channels]
+		self._scaler = [MinMaxScaler() for i in self._channels]
 		list0 = []	
 		##input to train_test_split is numpy array of samples, each sample is (7 x 7 x nch)	
-		self._channels = channels
 		multidx = self._name.find("Mult")
 		for i in range(-ngrid,ngrid+1):
 			cols_i = x.columns.str.contains("CNNgrid_E_cell"+str(i))
