@@ -111,6 +111,8 @@ class ConvNeuralNetwork(ModelBase):
 				col_E = x["CNNgrid_E_cell"+str(i)+"_"+str(j)]
 				col_t = x["CNNgrid_t_cell"+str(i)+"_"+str(j)]
 				col_r = x["CNNgrid_r_cell"+str(i)+"_"+str(j)]
+				print("col_E",len(col_E),"multidx",multidx)
+				print("channels",self._channels)
 				if multidx != -1:
 					#get channels that are multiplied together
 					multchs = [self._name[multidx+4],self._name[multidx-1]]
@@ -126,11 +128,17 @@ class ConvNeuralNetwork(ModelBase):
 						col_tr = col_t.mul(col_r) 
 						listcols.append(col_tr)
 				else:
-					if "E" in channels:
+					if "E" in self._channels:
 						listcols.append(col_E)
-					if "t" in channels:
+					if "t" in self._channels:
 						listcols.append(col_t)
-					if "r" in channels:
+					if "r" in self._channels:
+						listcols.append(col_r)
+					if "normE" in self._channels:
+						listcols.append(col_E)
+					if "normt" in self._channels:
+						listcols.append(col_t)
+					if "normr" in self._channels:
 						listcols.append(col_r)
 				col = list(zip(*listcols))
 				#print("col",col,"listcols",listcols)	
@@ -143,8 +151,6 @@ class ConvNeuralNetwork(ModelBase):
 			#print("zip list_"+str(i),list_i.shape)
 			list0.append(list_i)
 		x = np.array(list(zip(*[i for i in list0]))) #should be size (nsamples, ngrid, ngrid, nchannels)
-		#print("x",x.shape,x[0])
-		#print("channels",channels)
 					
 		self._features = []#x.columns
 		#print("unnorm",x[0:5],max(x[:,0]))
