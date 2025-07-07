@@ -111,8 +111,8 @@ class ConvNeuralNetwork(ModelBase):
 				col_E = x["CNNgrid_E_cell"+str(i)+"_"+str(j)]
 				col_t = x["CNNgrid_t_cell"+str(i)+"_"+str(j)]
 				col_r = x["CNNgrid_r_cell"+str(i)+"_"+str(j)]
-				print("col_E",len(col_E),"multidx",multidx)
-				print("channels",self._channels)
+				#print("col_E",len(col_E),"multidx",multidx)
+				#print("channels",self._channels)
 				if multidx != -1:
 					#get channels that are multiplied together
 					multchs = [self._name[multidx+4],self._name[multidx-1]]
