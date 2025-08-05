@@ -12,10 +12,12 @@ def runDNN(args):
 	#data
 	printstats = True
 	reader = CSVReader(printstats)
-	#reader.AddFile("csv/MET_R18_MRL_None_v24_MET_AOD_Run2018B_superclusters_testEnergySpectrum_defaultv5_beta0-1e-05_m0-0p0-0p0-0p0_W0diag-0p333-0p333-0p0_nu0-3_NperGeV-0p1_emAlpha-1e-05.csv")
-	#reader.AddFile("csv/DEG_R17_AL1IsoPho_v22_DoubleEG_AOD_Run2017F_09Aug2019_UL2017_superclusters_defaultv3p5.csv")
-	reader.AddFile("csv/MET_R18_MRL_MET100_v24_MET_AOD_Run2018B_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
-
+	#reader.AddFile("csv/EGamma_R18_AL1SelEle_DEOnly_v28_EGamma_AOD_Run2018C-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
+	#reader.AddFile("csv/MET_R18_AL1SelEle_DEOnly_v28_MET_AOD_Run2018A-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
+	#reader.AddFile("csv/MET_R18_AL1SelEle_DEOnly_v28_MET_AOD_Run2018B-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
+	#reader.AddFile("csv/MET_R18_AL1SelEle_DEOnly_v28_MET_AOD_Run2018C-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
+	#reader.AddFile("csv/MET_R18_AL1SelEle_DEOnly_v28_MET_AOD_Run2018D-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
+	reader.AddFile("/Users/margaretlazarovits/BayesianClustering/condor_MET_superclusters_emAlpha1e-5_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
 	
 	
 	reader.CleanData()
