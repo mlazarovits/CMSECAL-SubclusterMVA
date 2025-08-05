@@ -37,15 +37,20 @@ class CSVReader:
     #def AddPhysBkgSourceLimited(self, file, nrows)
 
 
-    def AddLargeFile(self,file):
+    def AddLargeFile(self,file,nsamp=1000,chunksize=1e5):
+        if nsamp > chunksize:
+            print("nsamp",nsamp,"cannot be larger than chunksize",chunksize)
+            return
         largedata = []
         if not self._data.empty:
             largedata = largedata.append(self._data)
-        nsamp = 1000
         #total # of samples will be floor(nrows/chunksize)*nsamp
-        for nchunk, chunk in enumerate(pd.read_csv(file,chunksize=1e5)):
+        for nchunk, chunk in enumerate(pd.read_csv(file,chunksize=chunksize)):
+            if(len(largedata) > 10 and nsamp != -1):
+                break
             print("processing chunk #",nchunk)
-            chunk = chunk.sample(n=nsamp,random_state=111)
+            if(nsamp != -1):
+                chunk = chunk.sample(n=nsamp,random_state=111)
             largedata.append(chunk)
         self._data = pd.concat(largedata,ignore_index=True)
         print("finishing concating dfs - have total of",len(self._data),"rows")

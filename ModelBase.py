@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import os
-from shap import DeepExplainer, summary_plot
-from shap.plots import beeswarm
+#from shap import DeepExplainer, summary_plot
+#from shap.plots import beeswarm
 import matplotlib.pyplot as plt
 #from tensorflow.keras import layers, metrics, Input, Model, activations, callbacks
 from sklearn.metrics import RocCurveDisplay, roc_curve
@@ -58,13 +58,13 @@ class ModelBase(ABC):
 
 	def VizImportance(self):
 		nsamp = 500
-		#over all training data - should take a subset
-		background = self._xtrain[np.random.choice(self._xtrain.shape[0], 100, replace=False)]
-		vals = DeepExplainer(self._model, background).shap_values(self._xtrain[:nsamp])
-		summary_plot(vals[0],self._xtrain[:nsamp],feature_names=self._features,show=False)
-		print("Saving SHAP plot to",self._path+"/SHAPplot."+self._form)
-		plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
-		plt.close()
+		##over all training data - should take a subset
+		#background = self._xtrain[np.random.choice(self._xtrain.shape[0], 100, replace=False)]
+		#vals = DeepExplainer(self._model, background).shap_values(self._xtrain[:nsamp])
+		#summary_plot(vals[0],self._xtrain[:nsamp],feature_names=self._features,show=False)
+		#print("Saving SHAP plot to",self._path+"/SHAPplot."+self._form)
+		#plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
+		#plt.close()
 	
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
