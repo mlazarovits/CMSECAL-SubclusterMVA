@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import os
-from shap import DeepExplainer, summary_plot
-from shap.plots import beeswarm
+#from shap import DeepExplainer, summary_plot
+#from shap.plots import beeswarm
 import matplotlib.pyplot as plt
 #from tensorflow.keras import layers, metrics, Input, Model, activations, callbacks
 from sklearn.metrics import RocCurveDisplay, roc_curve
@@ -58,13 +58,13 @@ class ModelBase(ABC):
 
 	def VizImportance(self):
 		nsamp = 500
-		#over all training data - should take a subset
-		background = self._xtrain[np.random.choice(self._xtrain.shape[0], 100, replace=False)]
-		vals = DeepExplainer(self._model, background).shap_values(self._xtrain[:nsamp])
-		summary_plot(vals[0],self._xtrain[:nsamp],feature_names=self._features,show=False)
-		print("Saving SHAP plot to",self._path+"/SHAPplot."+self._form)
-		plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
-		plt.close()
+		##over all training data - should take a subset
+		#background = self._xtrain[np.random.choice(self._xtrain.shape[0], 100, replace=False)]
+		#vals = DeepExplainer(self._model, background).shap_values(self._xtrain[:nsamp])
+		#summary_plot(vals[0],self._xtrain[:nsamp],feature_names=self._features,show=False)
+		#print("Saving SHAP plot to",self._path+"/SHAPplot."+self._form)
+		#plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
+		#plt.close()
 	
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
@@ -143,6 +143,7 @@ class ModelBase(ABC):
 				idx1 = np.flatnonzero(self._lb.classes_ == cat1)[0]
 				idx2 = np.flatnonzero(self._lb.classes_ == cat2)[0]
 
+				#whichever true cat is given is 'positive' class
 				fpr_cat1, tpr_cat1, thresh_cat1 = roc_curve(cat1_true, ypred[cat12_mask, idx1])
 				fpr_cat2, tpr_cat2, thresh_cat2 = roc_curve(cat2_true, ypred[cat12_mask, idx2])
 				
@@ -195,7 +196,7 @@ class ModelBase(ABC):
 		ax.grid()
 		#focus on discriminating region of interest
 		if(zoom):
-			ax.set_ylim([1e-2, 5e-1])
+			ax.set_ylim([5e-3, 5e-1])
 			ax.set_xlim([0,0.05])
 			fname += "_zoom"
 		else:
@@ -203,7 +204,7 @@ class ModelBase(ABC):
 			ax.set_xlim([0,1])
 		title=self._name+"\n 1-v-1 ROC"
 		ax.set(
-			xlabel="FPR",
+			xlabel="FPR (contamination rate)",
 			ylabel="1 - TPR (misid rate)",
 			title=title
 		)

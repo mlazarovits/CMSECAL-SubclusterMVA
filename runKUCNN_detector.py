@@ -7,123 +7,123 @@ import numpy as np
 
 # DNN for identifying detector background (spikes + beam halo) from physics bkg
 def runDNN(args):
-	#using AL1IsoPho presel s.t. there is no MET cut to bias the presence + spectrum of detector bkgs in MET PD
-	#AL1IsoPho = at least 1 isolated photon (standard presel iso)
-	#data
-	printstats = True
-	reader = CSVReader(printstats)
-	#reader.AddFile("csv/EGamma_R18_AL1SelEle_DEOnly_v28_EGamma_AOD_Run2018C-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
-	#reader.AddFile("csv/MET_R18_AL1SelEle_DEOnly_v28_MET_AOD_Run2018A-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
-	#reader.AddFile("csv/MET_R18_AL1SelEle_DEOnly_v28_MET_AOD_Run2018B-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
-	#reader.AddFile("csv/MET_R18_AL1SelEle_DEOnly_v28_MET_AOD_Run2018C-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
-	#reader.AddFile("csv/MET_R18_AL1SelEle_DEOnly_v28_MET_AOD_Run2018D-15Feb2022_UL2018-v1_superclusters_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")	
-	reader.AddFile("/Users/margaretlazarovits/BayesianClustering/condor_MET_superclusters_emAlpha1e-5_defaultv6_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
-	
-	
-	reader.CleanData()
-	reader.SelectClass(1,"EGamma"); #choose for a certain class (first arg) to only come from sample (second arg)
-	sublead_subcls = reader.RemoveSubleading()
-	#make model with subleading_subcls and viz inputs (make maps)
-	#drops all SCs with multiple subcls
-	#reader.LeadingOnly()
-
-	#balance classes via random undersampling - default
-	reader.BalanceClasses([1,2,3])
-	data = reader.GetData()
-	
-	catToName = {1 : "physicsBkg", 2 : "beamHalo", 3 : "spike", 0 : "signal"}
-	catToColor = {1 : "green", 2 : "red", 3 : "orange", 0 : "pink"}
-
-	
-		
-	#"features" to use for training
-	#for a CNN this is just a weighted map of the subclusters in eta-phi 2D space	
-	network_name = "KU-CNN_detector"
-	if args.extra is not None:
-		network_name += "_"+args.extra
-	nepochs = int(args.nEpochs)
-	early = False
-	channels = args.cols
-	if any("mult" in chan for chan in channels):
-		print("Using channels",channels,"did you mean to use Mult?")
-		exit()
-	print("Using channels",args.cols)
-	for ch in args.cols:
-		network_name += "_"+ch
-	network_name += "_"+str(nepochs)+"epochs"
-	if(early):
-		network_name += "_earlyStop"
-	
-	
-	#len(filters) = # layers
-	#filters[i] = # filters at ith layer
-	if(args.arch == "default"):
-		network_name += "_"+args.arch
-		filters = [64, 64, 64] 
-		model = ConvNeuralNetwork(data,filters,network_name,channels)
-		model.BuildModel()
-	elif(args.arch == "xsmall3"):
-		network_name += "_"+args.arch
-		filters = [3, 3] 
-		model = ConvNeuralNetwork(data,filters,network_name,channels)
-		model.BuildModel()
-	elif(args.arch == "small3"):
-		network_name += "_"+args.arch
-		filters = [3, 3, 3] 
-		model = ConvNeuralNetwork(data,filters,network_name,channels)
-		model.BuildModel()
-	elif(args.arch == "small4"):
-		network_name += "_"+args.arch
-		filters = [4, 4, 4] 
-		model = ConvNeuralNetwork(data,filters,network_name,channels)
-		model.BuildModel()
-	elif(args.arch == "small8"):
-		network_name += "_"+args.arch
-		filters = [8, 8, 8] 
-		model = ConvNeuralNetwork(data,filters,network_name,channels)
-		model.BuildModel()
-	elif(args.arch == "dual"):
-		network_name += "_"+args.arch
-		filters = [8, 8, 8] 
-		model = dualConvNeuralNetwork(data,filters,network_name,channels)
-		mask1 = (3,3) #spikes
-		mask2 = (3,1) #beam halo
-		model.BuildModel(mask1, mask2)
-	elif(args.arch == "sublead"):
-		network_name += "_"+args.arch
-		filters = [8, 8, 8]
-		print("Visualizing subleading maps") 
-		model = ConvNeuralNetwork(sublead_subcls,filters,network_name,channels)
-		model.BuildModel()
-		model.SetCategoryNames(catToName,catToColor)
-		model.VizInputs()
-		exit()
-	else:
-		print("Invalid architecture selected",args.network)
-		exit()
-	
-	
-	model.SetCategoryNames(catToName,catToColor)
-	#visualize inputs
-	model.VizInputs()
-	model.CompileModel()
-	model.summary()
-	if(args.dryRun):
-		exit()
-	#input is TrainModel(epochs=1,oname="",int:verb=1)
-	model.TrainModel(nepochs,batch=100,viz=True,savebest=True,earlystop=early)
-	#needs test data + to make ROC plots
-	model.TestModel(1,True)
-	model.VizModelWeights()
-	model.VizFeatureMaps()
-
-	#test on JetHT
-	#jetHT_reader = CSVReader(printstats)
-	#model.TestModel_data(MC_reader.GetData(), True,"GJets_HT400to600")
+    #using AL1IsoPho presel s.t. there is no MET cut to bias the presence + spectrum of detector bkgs in MET PD
+    #AL1IsoPho = at least 1 isolated photon (standard presel iso)
+    #data
+    printstats = True
+    reader = CSVReader(printstats)
+    #need AddLargeFile when running LPC	
+    reader.AddFile("csv/MET_R18_AL1NpSC_DEOnly_v31_MET_AOD_Run2018B-15Feb2022_UL2018-v1_superclusters_defaultv6_BHTrackVeto_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
+    reader.AddFile("csv/EGamma_R18_AL1SelEle_DEOnly_v28_EGamma_AOD_Run2018C-15Feb2022_UL2018-v1_superclusters_defaultv6_skip10_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
+    reader.CleanData()
+    reader.SelectClass(1,"EGamma"); #choose for a certain class (first arg) to only come from sample (second arg)
+    sublead_subcls = reader.RemoveSubleading()
+    #make model with subleading_subcls and viz inputs (make maps)
+    #drops all SCs with multiple subcls
+    #reader.LeadingOnly()
+    
+    #balance classes via random undersampling - default
+    reader.BalanceClasses([1,2,3])
+    data = reader.GetData()
+    
+    catToName = {1 : "physicsBkg", 2 : "beamHalo", 3 : "spike", 0 : "signal"}
+    catToColor = {1 : "green", 2 : "red", 3 : "orange", 0 : "pink"}
+    
+    
+    	
+    #"features" to use for training
+    #for a CNN this is just a weighted map of the subclusters in eta-phi 2D space	
+    network_name = "KU-CNN_detector"
+    if args.extra is not None:
+    	network_name += "_"+args.extra
+    nepochs = int(args.nEpochs)
+    early = False
+    channels = args.cols
+    if any("mult" in chan for chan in channels):
+    	print("Using channels",channels,"did you mean to use Mult?")
+    	exit()
+    print("Using channels",args.cols)
+    for ch in args.cols:
+    	network_name += "_"+ch
+    network_name += "_"+str(nepochs)+"epochs"
+    if(early):
+    	network_name += "_earlyStop"
+    
+    
+    #len(filters) = # layers
+    #filters[i] = # filters at ith layer
+    if(args.arch == "default"):
+    	network_name += "_"+args.arch
+    	filters = [64, 64, 64] 
+    	model = ConvNeuralNetwork(data,filters,network_name,channels)
+    	model.BuildModel()
+    elif(args.arch == "xsmall3"):
+    	network_name += "_"+args.arch
+    	filters = [3, 3] 
+    	model = ConvNeuralNetwork(data,filters,network_name,channels)
+    	model.BuildModel()
+    elif(args.arch == "small2"):
+    	network_name += "_"+args.arch
+    	filters = [2, 2, 2] 
+    	model = ConvNeuralNetwork(data,filters,network_name,channels)
+    	model.BuildModel()
+    elif(args.arch == "small3"):
+    	network_name += "_"+args.arch
+    	filters = [3, 3, 3] 
+    	model = ConvNeuralNetwork(data,filters,network_name,channels)
+    	model.BuildModel()
+    elif(args.arch == "small4"):
+    	network_name += "_"+args.arch
+    	filters = [4, 4, 4] 
+    	model = ConvNeuralNetwork(data,filters,network_name,channels)
+    	model.BuildModel()
+    elif(args.arch == "small8"):
+    	network_name += "_"+args.arch
+    	filters = [8, 8, 8] 
+    	model = ConvNeuralNetwork(data,filters,network_name,channels)
+    	model.BuildModel()
+    elif(args.arch == "dual"):
+    	network_name += "_"+args.arch
+    	filters = [8, 8, 8] 
+    	model = dualConvNeuralNetwork(data,filters,network_name,channels)
+    	mask1 = (3,3) #spikes
+    	mask2 = (3,1) #beam halo
+    	model.BuildModel(mask1, mask2)
+    elif(args.arch == "sublead"):
+    	network_name += "_"+args.arch
+    	filters = [8, 8, 8]
+    	print("Visualizing subleading maps") 
+    	model = ConvNeuralNetwork(sublead_subcls,filters,network_name,channels)
+    	model.BuildModel()
+    	model.SetCategoryNames(catToName,catToColor)
+    	model.VizInputs()
+    	exit()
+    else:
+    	print("Invalid architecture selected",args.network)
+    	exit()
+    
+    
+    model.SetCategoryNames(catToName,catToColor)
+    #visualize inputs
+    model.VizInputs()
+    model.CompileModel()
+    model.summary()
+    if(args.dryRun):
+    	exit()
+    #input is TrainModel(epochs=1,oname="",int:verb=1)
+    model.TrainModel(nepochs,batch=100,viz=True,savebest=True,earlystop=early)
+    #needs test data + to make ROC plots
+    model.TestModel(1,True)
+    model.VizModelWeights()
+    model.VizFeatureMaps()
+    
+    #test on JetHT
+    #jetHT_reader = CSVReader(printstats)
+    #model.TestModel_data(MC_reader.GetData(), True,"GJets_HT400to600")
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","small4","small3","xsmall3","dual","sublead"],default="default")
+	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","small4","small3","small2","xsmall3","dual","sublead"],default="default")
 	#parser.add_argument('--cols','-c',help="which set of inputs to run",choices=["default","Eonly","timeOnly","rOnly","ErOnly","EMultr","normE","normEMultr"],nargs='+')
 	parser.add_argument('--cols','-c',help="which set of inputs to run - combination of E, r, t, xMulty, normx",nargs='+',default=["EMultr"])
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
