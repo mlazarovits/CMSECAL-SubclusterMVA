@@ -12,15 +12,12 @@ def runDNN(args):
     #data
     printstats = True
     reader = CSVReader(printstats)
-    #need AddLargeFile when running LPC	
-    reader.AddFile("csv/MET_R18_AL1NpSC_DEOnly_v31_MET_AOD_Run2018B-15Feb2022_UL2018-v1_superclusters_defaultv6_BHTrackVeto_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
-    reader.AddFile("csv/EGamma_R18_AL1SelEle_DEOnly_v28_EGamma_AOD_Run2018C-15Feb2022_UL2018-v1_superclusters_defaultv6_skip10_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
+    reader.AddFile("csv/MET_R18_AL1NpSC_DEOnly_v31_MET_AOD_Run2018B-15Feb2022_UL2018-v1_superclusters_defaultv7_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")
+    reader.AddFile("csv/EGamma_R18_AL1SelEle_nolumimask_v31_EGamma_AOD_Run2018C-15Feb2022_UL2018-v1_superclusters_defaultv7_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")
+    #reader.AddFile("csv/MET_R22_AL1NpSC_v31_MET_AOD_Run2022C_superclusters_defaultv6_BHTrackVeto_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
+
     reader.CleanData()
     reader.SelectClass(1,"EGamma"); #choose for a certain class (first arg) to only come from sample (second arg)
-    sublead_subcls = reader.RemoveSubleading()
-    #make model with subleading_subcls and viz inputs (make maps)
-    #drops all SCs with multiple subcls
-    #reader.LeadingOnly()
     
     #balance classes via random undersampling - default
     reader.BalanceClasses([1,2,3])
@@ -38,13 +35,6 @@ def runDNN(args):
     	network_name += "_"+args.extra
     nepochs = int(args.nEpochs)
     early = False
-    channels = args.cols
-    if any("mult" in chan for chan in channels):
-    	print("Using channels",channels,"did you mean to use Mult?")
-    	exit()
-    print("Using channels",args.cols)
-    for ch in args.cols:
-    	network_name += "_"+ch
     network_name += "_"+str(nepochs)+"epochs"
     if(early):
     	network_name += "_earlyStop"
@@ -55,54 +45,44 @@ def runDNN(args):
     if(args.arch == "default"):
     	network_name += "_"+args.arch
     	filters = [64, 64, 64] 
-    	model = ConvNeuralNetwork(data,filters,network_name,channels)
-    	model.BuildModel()
     elif(args.arch == "xsmall3"):
     	network_name += "_"+args.arch
     	filters = [3, 3] 
-    	model = ConvNeuralNetwork(data,filters,network_name,channels)
-    	model.BuildModel()
     elif(args.arch == "small2"):
     	network_name += "_"+args.arch
     	filters = [2, 2, 2] 
-    	model = ConvNeuralNetwork(data,filters,network_name,channels)
-    	model.BuildModel()
     elif(args.arch == "small3"):
     	network_name += "_"+args.arch
     	filters = [3, 3, 3] 
-    	model = ConvNeuralNetwork(data,filters,network_name,channels)
-    	model.BuildModel()
     elif(args.arch == "small4"):
     	network_name += "_"+args.arch
     	filters = [4, 4, 4] 
-    	model = ConvNeuralNetwork(data,filters,network_name,channels)
-    	model.BuildModel()
     elif(args.arch == "small8"):
     	network_name += "_"+args.arch
     	filters = [8, 8, 8] 
-    	model = ConvNeuralNetwork(data,filters,network_name,channels)
-    	model.BuildModel()
-    elif(args.arch == "dual"):
-    	network_name += "_"+args.arch
-    	filters = [8, 8, 8] 
-    	model = dualConvNeuralNetwork(data,filters,network_name,channels)
-    	mask1 = (3,3) #spikes
-    	mask2 = (3,1) #beam halo
-    	model.BuildModel(mask1, mask2)
-    elif(args.arch == "sublead"):
-    	network_name += "_"+args.arch
-    	filters = [8, 8, 8]
-    	print("Visualizing subleading maps") 
-    	model = ConvNeuralNetwork(sublead_subcls,filters,network_name,channels)
-    	model.BuildModel()
-    	model.SetCategoryNames(catToName,catToColor)
-    	model.VizInputs()
-    	exit()
+    #elif(args.arch == "dual"):
+    #	network_name += "_"+args.arch
+    #	filters = [8, 8, 8] 
+    #	model = dualConvNeuralNetwork(data,filters,network_name)
+    #	mask1 = (3,3) #spikes
+    #	mask2 = (3,1) #beam halo
+    #	model.BuildModel(mask1, mask2)
+    #elif(args.arch == "sublead"):
+    #	network_name += "_"+args.arch
+    #	filters = [8, 8, 8]
+    #	print("Visualizing subleading maps") 
+    #	model = ConvNeuralNetwork(sublead_subcls,filters,network_name)
+    #	model.BuildModel()
+    #	model.SetCategoryNames(catToName,catToColor)
+    #	model.VizInputs()
+    #	exit()
     else:
     	print("Invalid architecture selected",args.network)
     	exit()
     
     
+    model = ConvNeuralNetwork(data,filters,network_name)
+    model.BuildModel()
     model.SetCategoryNames(catToName,catToColor)
     #visualize inputs
     model.VizInputs()
@@ -123,9 +103,8 @@ def runDNN(args):
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","small4","small3","small2","xsmall3","dual","sublead"],default="default")
-	#parser.add_argument('--cols','-c',help="which set of inputs to run",choices=["default","Eonly","timeOnly","rOnly","ErOnly","EMultr","normE","normEMultr"],nargs='+')
-	parser.add_argument('--cols','-c',help="which set of inputs to run - combination of E, r, t, xMulty, normx",nargs='+',default=["EMultr"])
+	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","small4","small3","small2","xsmall3"],default="small3")
+	#parser.add_argument('--cols','-c',help="which set of inputs to run - combination of E, r, t, xMulty, normx",nargs='+',default=["EMultr"])
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
