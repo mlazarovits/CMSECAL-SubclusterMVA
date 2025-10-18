@@ -99,21 +99,21 @@ class ModelBase(ABC):
 		if min(fpr[:-2]) < ymin:
 			ymin = min(fpr[:-2])
 		ax.plot(
-			tpr,
 			fpr,
+			tpr,
 			linewidth=4,
 			label=class1name+" vs "+class2name,
 			color=col,
 		)
 		ax.set(
-			xlabel="Signal inefficiency (1 - TPR)",
-			ylabel="Background mistag (1 - TNR)",
+			xlabel="Background mistag (1 - TNR)",
+			ylabel="Signal inefficiency (1 - TPR)",
 			title=self._name+"\n"+class1name+" vs "+class2name+" ROC"
 		)
-		ax.set_ylim([1e-6, 0.1])
+		ax.set_ylim([1e-3, 1.0])
 		ax.set_xlim([1e-6,0.1])
 		ax.set_yscale('log')	
-		ax.set_xscale('log')	
+		#ax.set_xscale('log')	
 		ax.grid()
 
 		'''
