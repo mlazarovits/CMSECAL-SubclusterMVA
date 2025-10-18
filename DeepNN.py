@@ -52,7 +52,6 @@ class DeepNeuralNetwork(ModelBase):
 		#shape of input data
 		super().__init__()
 
-	#TODO - make sure labels are being processed correctly for pos/sig (1) and neg/bkg (0) classes
 	def ProcessData(self, data):
 		labels = data["label"]
 		labels = np.array(labels).reshape(-1,1)

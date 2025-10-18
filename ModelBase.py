@@ -76,7 +76,7 @@ class ModelBase(ABC):
 		for y in range(len(ytrue)):
 			ytrue_1D.append(ytrue[y][pos_label])
 			ypred_1D.append(ypred[y][pos_label])
-
+		print("ytrue_1D",ytrue_1D[0], "ypred_1D",np.unique(ypred_1D))
 		#dont need to give 'pos label' to roc_curve since those values have been selected above
 		fpr, tpr, thresh = roc_curve(ytrue_1D, ypred_1D)
 		print("# fpr",len(fpr),"# tpr",len(tpr),"# thresh",len(thresh))
@@ -85,9 +85,17 @@ class ModelBase(ABC):
 		ax = plt.gca()
 		col = "pink" #also get from dict?
 		ymin = 999
-		
-		#do 1- FPR
-		fpr = [1 - i for i in fpr]
+	
+		#tpr = signal efficiency
+		#1 - tpr = fnr = signal inefficiency
+		#fpr = background mistag rate
+		#1 - fpr = tnr = background rejection
+
+		#TODO - make sure ROC curve is in best variables and log scales, ranges, etc to see what's going on the best	
+		#do 1 - FPR = TNR
+		#fpr = [1 - i for i in fpr]
+		#do 1 - TPR = FNR
+		tpr = [1 - i for i in tpr]
 		if min(fpr[:-2]) < ymin:
 			ymin = min(fpr[:-2])
 		ax.plot(
@@ -98,10 +106,15 @@ class ModelBase(ABC):
 			color=col,
 		)
 		ax.set(
-			xlabel="Signal efficiency (TPR)",
-			ylabel="Background rejection (TNR)",
+			xlabel="Signal inefficiency (1 - TPR)",
+			ylabel="Background mistag (1 - TNR)",
 			title=self._name+"\n"+class1name+" vs "+class2name+" ROC"
 		)
+		ax.set_ylim([1e-6, 0.1])
+		ax.set_xlim([1e-6,0.1])
+		ax.set_yscale('log')	
+		ax.set_xscale('log')	
+		ax.grid()
 
 		'''
 		#traditional TPR vs FPR
