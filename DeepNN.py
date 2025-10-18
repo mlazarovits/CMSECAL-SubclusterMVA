@@ -3,7 +3,7 @@ from keras import layers, metrics, Input, Model, activations
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import normalize, MinMaxScaler, LabelBinarizer
+from sklearn.preprocessing import normalize, MinMaxScaler, OneHotEncoder
 import os
 import subprocess
 import numpy as np
@@ -52,12 +52,15 @@ class DeepNeuralNetwork(ModelBase):
 		#shape of input data
 		super().__init__()
 
-
+	#TODO - make sure labels are being processed correctly for pos/sig (1) and neg/bkg (0) classes
 	def ProcessData(self, data):
-		self._lb = LabelBinarizer()
 		labels = data["label"]
+		labels = np.array(labels).reshape(-1,1)
+		self._lb = OneHotEncoder(sparse_output=False)
 		y = self._lb.fit_transform(labels)
-		
+	
+		#print("labels",np.unique(labels),"transformed labels",y,"catnames",self._catnames,"classes",self._lb.categories_)
+	
 		#extract inputs and labels, remove unnecessary columns
 		#drop event + subcl cols
 		dropcols = ["sample","event","object","subcl","label"]
@@ -106,7 +109,7 @@ class DeepNeuralNetwork(ModelBase):
 
 
 	def VizInputs(self):
-		labels = self._lb.classes_
+		labels = self._lb.categories_[0]
 		all_labels = self._lb.inverse_transform(self._ytrain)
 		inputs = [[[] for l in labels] for f in self._features]
 		xtrain = self._scaler.inverse_transform(self._xtrain)
@@ -117,17 +120,18 @@ class DeepNeuralNetwork(ModelBase):
 				#print(i,x,self._ytrain[j],self._features[i])
 				#this sample needs to be put in j == label[k]
 				#print(self._xtrain[j],self._ytrain[j],all_labels[j])
-				lidx = np.flatnonzero(self._lb.classes_ == all_labels[j])[0]
+				lidx = np.flatnonzero(labels == all_labels[j])[0]
+				#lidx = np.flatnonzero(self._lb.categories_ == all_labels[j])[0]
 				#print(i,self._features[i])
 				inputs[i][lidx].append(x[i])
 			for j, l in enumerate(labels):
-				ns, bins, _ = plt.hist(inputs[i][j],label=self._catnames[labels[j]],log=True,bins=50,histtype=u'step')
+				ns, bins, _ = plt.hist(inputs[i][j],label=self._catnames[l],log=True,bins=50,histtype=u'step')
 				#self._inputHists[feature][label][ns, bins][bin #]
 				bindict = {}
 				bindict["ns"] = ns
 				bindict["bins"] = bins
 				self._inputHists[i].append(bindict)
-			if os.path.exists(self._path+"/"+self._features[i]+"."+self._form):
+			if os.path.exists(self._path+"/"+self._features[i]+"."+self._form): #need to still create the hists for _inputHists closure test
 				continue
 			plt.title(self._features[i])
 			plt.legend()
@@ -139,7 +143,7 @@ class DeepNeuralNetwork(ModelBase):
 	def ValidateModel(self):
 		samp_weights = np.array(self._model.predict(self._xtrain))
 		#possible labels
-		labels = self._lb.classes_
+		labels = self._lb.categories_[0]
 		all_labels = self._lb.inverse_transform(self._ytrain)
 		inputs = [[[] for l in labels] for f in self._features]
 		xtrain = np.array(self._scaler.inverse_transform(self._xtrain))

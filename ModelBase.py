@@ -68,7 +68,43 @@ class ModelBase(ABC):
 	
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
-	def VizROC(self, ytrue, ypred, fextra=""):
+	def VizROC(self, ytrue, ypred, class1name = "sig", class2name = "bkg", pos_label=1, fextra=""):
+		print("pos_label",pos_label,"# ytrue",len(ytrue),"# ypred",len(ypred),"ytrue",ytrue[0],"ypred",ypred[0])
+		#need to process ytrue and ypred s.t. they are given to roc_curve as 1D arrays of assignment (ytrue - 0 or 1) and prediction (score of 'signal'/positive class)
+		ytrue_1D = []
+		ypred_1D = []
+		for y in range(len(ytrue)):
+			ytrue_1D.append(ytrue[y][pos_label])
+			ypred_1D.append(ypred[y][pos_label])
+
+		#dont need to give 'pos label' to roc_curve since those values have been selected above
+		fpr, tpr, thresh = roc_curve(ytrue_1D, ypred_1D)
+		print("# fpr",len(fpr),"# tpr",len(tpr),"# thresh",len(thresh))
+		print("thresh",thresh)
+		fig = plt.figure()
+		ax = plt.gca()
+		col = "pink" #also get from dict?
+		ymin = 999
+		
+		#do 1- FPR
+		fpr = [1 - i for i in fpr]
+		if min(fpr[:-2]) < ymin:
+			ymin = min(fpr[:-2])
+		ax.plot(
+			tpr,
+			fpr,
+			linewidth=4,
+			label=class1name+" vs "+class2name,
+			color=col,
+		)
+		ax.set(
+			xlabel="Signal efficiency (TPR)",
+			ylabel="Background rejection (TNR)",
+			title=self._name+"\n"+class1name+" vs "+class2name+" ROC"
+		)
+
+		'''
+		#traditional TPR vs FPR
 		display = RocCurveDisplay.from_predictions(ytrue,ypred,
 			name="signal vs rest",
 			color="pink",
@@ -79,6 +115,7 @@ class ModelBase(ABC):
 			ylabel="True Positive Rate",
 			title=self._name+"\nSignal vs !signal subcluster ROC"
 		)
+		'''
 		plotname = self._path+"/ROCplot"
 		if fextra != "":
 			plotname += "_"+fextra
@@ -204,8 +241,8 @@ class ModelBase(ABC):
 			ax.set_xlim([0,1])
 		title=self._name+"\n 1-v-1 ROC"
 		ax.set(
-			xlabel="FPR (contamination rate)",
-			ylabel="1 - TPR (misid rate)",
+			xlabel="FPR (background mistag rate)",
+			ylabel="1 - TPR (signal inefficiency)",
 			title=title
 		)
 		plotname = self._path+"/ROC_"+fname
@@ -252,13 +289,21 @@ class ModelBase(ABC):
 		keys = list(files.keys())
 		
 		#load best model
-		print("loading model",files[min(keys)])	
 		self._model.load_weights(files[min(keys)])	
 		#save optimal model as .keras for frugally-deep
 		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
+		pos_label = 1
 		if viz:
-			if len(self._ytest[0]) == 1:
-				self.VizROC(self._ytest, ypred)
+			if len(self._ytest[0]) == 2:
+				labels = []
+				classes = []
+				for key in self._catnames.keys():
+					labels.append(key)
+					classes.append(self._catnames[key])
+				if labels == [4,6]:
+					#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
+					pos_label = 0
+				self.VizROC(self._ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label)
 			else:  #multiclass
 				#plot physics bkg vs other bkgs
 				self.VizMulticlassROC(self._ytest, ypred,1)
