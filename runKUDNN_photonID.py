@@ -99,7 +99,7 @@ def runDNN(args):
 		network_name += "_"+args.extra
 	nepochs = int(args.nEpochs)
 	early = False
-	shape_cols = ["sample","event","object","subcl","eta_sig","phi_sig","etaphi_cov","timeeta_cov","major_length", "minor_length","energy","label"]
+	shape_cols = ["sample","event","object","subcl","eta_sig","phi_sig","etaphi_cov","major_length", "minor_length","label"]
 	iso_cols = ["sample","event","object","subcl","trkSumPtSolidConeDR04","hadTowOverEM","ecalRHSumEtConeDR04","label"]
 	if(args.network == "shape"):
 		#default input set
@@ -137,6 +137,8 @@ def runDNN(args):
 	network_name += "_"+args.arch
 	if(args.arch == "default"):
 		nodes = [64, 64, 64]
+	if(args.arch == "med16"):
+		nodes = [16, 16, 16] 
 	if(args.arch == "med8"):
 		nodes = [8, 8, 8] 
 	if(args.arch == "small8"):
@@ -161,7 +163,7 @@ def runDNN(args):
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--network','-n',help="which set of inputs to run",choices=["iso","shape","isoShape"],required=True)
-	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","med8","small8"],default="small3")
+	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","med16","med8","small8"],default="small3")
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
