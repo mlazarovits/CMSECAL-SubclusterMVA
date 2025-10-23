@@ -153,7 +153,7 @@ class ModelBase(ABC):
 	def VizMulticlassROC(self, ytrue, ypred, cat = -1, zoom = False, fextra = ""):
 		title=""
 
-		fig = plt.figure(figsize=[7,4.8])
+		fig = plt.figure()
 		ax = plt.gca()
 		#one vs all
 		if cat != -1:
@@ -257,7 +257,7 @@ class ModelBase(ABC):
     				)
 				'''
 			ax.legend()
-		ax.set_yscale('log')	
+		#ax.set_yscale('log')	
 		ax.grid()
 		#focus on discriminating region of interest
 		if(zoom):
@@ -307,7 +307,10 @@ class ModelBase(ABC):
 		if viz:
 			self.VizMetric(his,"loss")
 	
-	def TestModel(self,batch_size=1,viz=False,verb=1,usebest=False, validate_model = False):
+	def TestModel(self,batch_size=1,viz=False,verb=1,validate_model = False):
+		if not os.path.exists(self._path):
+			print("Error: network at",self._path,"does not exist. Select another network or train this one.")
+			return
 		#get best model
 		files = {}
 		for root, dirs, f in os.walk(self._path):
@@ -336,7 +339,7 @@ class ModelBase(ABC):
 				self.VizROC(self._ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label)
 			else:  #multiclass
 				#plot physics bkg vs other bkgs
-				self.VizMulticlassROC(self._ytest, ypred,1)
+				self.VizMulticlassROC(self._ytest, ypred,1,zoom=True)
 				#plot BH vs other bkgs
 				self.VizMulticlassROC(self._ytest, ypred,2,zoom=True)
 				#plot one-v-one for each class
@@ -346,7 +349,7 @@ class ModelBase(ABC):
 			if validate_model:
 				self.ValidateModel()
 	
-	def TestModel_data(self,data,fextra,viz=False,verb=1,usebest=False, validate_model = False):
+	def TestModel_data(self,data,fextra,viz=False,verb=1, validate_model = False):
 		#get best model
 		files = {}
 		for root, dirs, f in os.walk(self._path):
