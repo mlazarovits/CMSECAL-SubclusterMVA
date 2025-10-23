@@ -57,16 +57,23 @@ class CSVReader:
     def PrintStats(self):
         sig = len(self._data[self._data["label"] == 0])
         nom = len(self._data[self._data["label"] == 1])
-        gmsb = len(self._data[self._data["sample"].str.contains("GMSB") == True])
+        #gmsb = len(self._data[self._data["sample"].str.contains("GMSB") == True])
+        gogo = len(self._data[self._data["sample"].str.contains("gogo") == True])
+        sqsq = len(self._data[self._data["sample"].str.contains("sqsq") == True])
+        if gogo == 0:
+        	sig = sqsq
         gjets = len(self._data[self._data["sample"].str.contains("GJets") == True])
         qcd = len(self._data[self._data["sample"].str.contains("QCD") == True])
-        d = len(self._data[self._data["sample"] == "METPD"]) + len(self._data[self._data["sample"] == "EGamma"]) 
+        datasamples = ["METPD","EGamma","DoubleEG","JetHT"]
+        d = 0
+        for i in datasamples:
+        	d += len(self._data[self._data["sample"] == i])
         tot = len(self._data)
         phys = len(self._data[self._data["label"] == 1])
         BH = len(self._data[self._data["label"] == 2])
         spike = len(self._data[self._data["label"] == 3])
         print(" ",tot, ("subclusters, phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
-        print(" ",tot, ("subclusters, data: "+str(d)+" {:.2f}%, GJets: "+str(gjets)+" {:.2f}%, QCD "+str(qcd)+" {:.2f}%, GMSB "+str(gmsb)+" {:.2f}%").format(d/tot,gjets/tot,qcd/tot,gmsb/tot))
+        print(" ",tot, ("subclusters, data: "+str(d)+" {:.2f}%, GJets: "+str(gjets)+" {:.2f}%, QCD "+str(qcd)+" {:.2f}%, signal "+str(sig)+" {:.2f}%").format(d/tot,gjets/tot,qcd/tot,sig/tot))
     
         
     #data cleaning, cuts, etc.
@@ -91,7 +98,7 @@ class CSVReader:
             self.PrintStats()
 
         #put extra cuts on subcluster energy, etc.  
-        self._data.dropna()
+        self._data.dropna(how="any")
         if(self._printstats):
             print('after dropna')
             self.PrintStats()
@@ -127,16 +134,21 @@ class CSVReader:
         return sublead_data
 
 
-    def SelectClass(self,nclass,samp):
-        #drop rows from samp that are not nclass
-        rowbool = ((self._data["sample"].str.contains(samp) == True) & (self._data["label"] != nclass)) 
-        self._data = self._data.drop(self._data[rowbool].index)  
-        #drop rows for !samp that are nclass
-        rowbool = ((self._data["sample"].str.contains(samp) == False) & (self._data["label"] == nclass)) 
-        self._data = self._data.drop(self._data[rowbool].index)  
+    def SelectClass(self,nclass,samps):
+        #drop rows from all samps that are not nclass
+        self._data = self._data[~((self._data["sample"].isin(samps)) & (self._data["label"] != nclass))]
+        ##drop rows for !samp that are nclass
+        self._data = self._data[~((self._data["label"] == nclass) & (~self._data["sample"].isin(samps)))]	
         if(self._printstats):
-            print("after setting class",nclass,"to be only from",samp)
+            print("after setting class",nclass,"to be only from",samps)
             self.PrintStats()
+
+    #only allow nsamp of samples from nclass
+    def CapClass(self,nclass,nsamp):
+        sampled_subset = self._data[self._data['label'] == nclass].sample(n=nsamp, random_state=42)	
+        #replace all rows with label l by this sampled subset
+        self._data = pd.concat([self._data[self._data['label'] != nclass], sampled_subset], ignore_index=True)
+
 
     def BalanceClasses(self, labels):
         sizes = {}
