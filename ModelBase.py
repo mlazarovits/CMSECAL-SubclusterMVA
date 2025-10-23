@@ -9,6 +9,7 @@ from keras import callbacks
 import glob
 from itertools import combinations
 import numpy as np
+import pandas as pd
 
 class ModelBase(ABC):
 	def __init__(self):
@@ -65,6 +66,17 @@ class ModelBase(ABC):
 		#print("Saving SHAP plot to",self._path+"/SHAPplot."+self._form)
 		#plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
 		#plt.close()
+
+	def FindDiscThresh(self, fpr_thresh, ncat, fpr_cat, tpr_cat, thresh_cat):
+		mindiff = 999
+		bestIdx = 0
+		for i, fpr in enumerate(fpr_cat):
+			diff = abs(fpr - 0.02)
+			if diff < mindiff:
+				mindiff = diff
+				bestIdx = i
+		print("FPR ~",fpr_thresh,",cat (sig)",ncat,self._catnames[ncat],"fpr",fpr_cat[bestIdx],"tpr",tpr_cat[bestIdx],"thresh on sig cat",thresh_cat[bestIdx])
+
 	
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
@@ -84,7 +96,6 @@ class ModelBase(ABC):
 		fig = plt.figure()
 		ax = plt.gca()
 		col = "pink" #also get from dict?
-		ymin = 999
 	
 		#tpr = signal efficiency
 		#1 - tpr = fnr = signal inefficiency
@@ -95,9 +106,7 @@ class ModelBase(ABC):
 		#do 1 - FPR = TNR
 		#fpr = [1 - i for i in fpr]
 		#do 1 - TPR = FNR
-		tpr = [1 - i for i in tpr]
-		if min(fpr[:-2]) < ymin:
-			ymin = min(fpr[:-2])
+		#tpr = [1 - i for i in tpr]
 		ax.plot(
 			fpr,
 			tpr,
@@ -106,14 +115,13 @@ class ModelBase(ABC):
 			color=col,
 		)
 		ax.set(
-			xlabel="Background mistag (1 - TNR)",
-			ylabel="Signal inefficiency (1 - TPR)",
+			xlabel="Background mistag",
+			ylabel="Signal efficiency",
 			title=self._name+"\n"+class1name+" vs "+class2name+" ROC"
 		)
-		ax.set_ylim([1e-3, 1.0])
-		ax.set_xlim([1e-6,0.1])
+		ax.set_ylim([5e-1, 1.0])
+		ax.set_xlim([1e-6,0.2])
 		ax.set_yscale('log')	
-		#ax.set_xscale('log')	
 		ax.grid()
 
 		'''
@@ -136,6 +144,8 @@ class ModelBase(ABC):
 		print("Saving ROC plot to",plotname)
 		plt.savefig(plotname,format=self._form)
 		plt.close()
+
+
 	
 	#ytrue and ypred are given in onehot form	
 	#if cat = -1, plot one vs one for all classes
@@ -143,22 +153,19 @@ class ModelBase(ABC):
 	def VizMulticlassROC(self, ytrue, ypred, cat = -1, zoom = False, fextra = ""):
 		title=""
 
-		ymin = 999
-		fig = plt.figure()
+		fig = plt.figure(figsize=[7,4.8])
 		ax = plt.gca()
 		#one vs all
 		if cat != -1:
 			catname = self._catnames[cat] 
 			col = "pink" #also get from dict?
-			title=self._name+"\n"+catname+" vs all subcluster ROC"
+			title=self._name+"\n"+catname+" vs all ROC"
 			fname = catname+"_vs_all"
 			
 			fpr, tpr, thresh = roc_curve(ytrue[:,cat], ypred[:, cat])
 			
 			#do 1- TPR
-			tpr = [1 - i for i in tpr]
-			if min(tpr[:-2]) < ymin:
-				ymin = min(tpr[:-2])
+			#tpr = [1 - i for i in tpr]
 			ax.plot(
 				fpr,
 				tpr,
@@ -168,7 +175,7 @@ class ModelBase(ABC):
 			)
 		#do all one vs ones
 		else:
-			title = "one vs one ROC"
+			title=self._name+"\n 1-v-1 ROC"
 			#make unique pairs of categories
 			ytrue_cat = self._lb.inverse_transform(ytrue)
 			pairs = list(combinations(np.unique(ytrue_cat), 2))
@@ -180,6 +187,10 @@ class ModelBase(ABC):
 				else:
 					paircolors[(cat1,cat2)] = self._catcolors[cat2]
 			for idx, (cat1, cat2) in enumerate(pairs):
+				#only do for bkg classes vs phys bkg
+				if(cat1 != 1 and cat2 != 1):
+					continue
+
 				#y_test needs to be categorical labels
 				#only focus on the 2 categories under analysis rn - hence logical or
 				cat1_mask = ytrue_cat == cat1
@@ -193,37 +204,41 @@ class ModelBase(ABC):
 				idx1 = np.flatnonzero(self._lb.classes_ == cat1)[0]
 				idx2 = np.flatnonzero(self._lb.classes_ == cat2)[0]
 
+
+				print("cat1",cat1,"cat2",cat2)
+				print("ytrue",ytrue[0],"ypred",ypred[0])
+				print("cat1_true",cat1_true[0],"ypred",ypred[cat12_mask, idx1][0])
+				print("cat2_true",cat2_true[0],"ypred",ypred[cat12_mask, idx2][0])
+
 				#whichever true cat is given is 'positive' class
 				fpr_cat1, tpr_cat1, thresh_cat1 = roc_curve(cat1_true, ypred[cat12_mask, idx1])
 				fpr_cat2, tpr_cat2, thresh_cat2 = roc_curve(cat2_true, ypred[cat12_mask, idx2])
 				
-				#do 1- TPR
-				tpr_cat1 = [1 - i for i in tpr_cat1]
-				if min(tpr_cat1[:-2]) < ymin:
-					ymin = min(tpr_cat1[:-2])
+				#TODO - write out fpr, tprs to csv
+
+				##do 1- TPR
+				#tpr_cat1 = [1 - i for i in tpr_cat1]
 				#print("fpr, tpr, thresh for cat 2",list(zip(fpr_cat1, tpr_cat1, thresh_cat2)))
 				#print("fpr, tpr, thresh for cat 1",list(zip(fpr_cat1, tpr_cat1, thresh_cat1)))
 
-				#get FPR for 1-tpr (misid) ~ 0.01
-				#find index of entry in tpr for element that is closest to 0.01
-				mindiff = 999
-				bestIdx = 0
-				for i, tpr in enumerate(tpr_cat1):
-					diff = abs(tpr - 0.01)
-					if diff < mindiff:
-						mindiff = diff
-						bestIdx = i
-				print("cat1",cat1,self._catnames[cat1],"fpr",fpr_cat1[bestIdx],"1-tpr",tpr_cat1[bestIdx],"thresh cat1",thresh_cat1[bestIdx])
-				
-				mindiff = 999
-				bestIdx = 0
-				for i, tpr in enumerate(tpr_cat2):
-					diff = abs(tpr - 0.01)
-					if diff < mindiff:
-						mindiff = diff
-						bestIdx = i
-				print("cat2",cat2,self._catnames[cat2],"fpr",fpr_cat2[bestIdx],"1-tpr",tpr_cat2[bestIdx],"thresh cat2",thresh_cat2[bestIdx])
+				#get FPR (misid) ~ 0.02
+				#find index of entry in tpr for element that is closest to 0.02
+				self.FindDiscThresh(0.02, 1, fpr_cat1, tpr_cat1, thresh_cat1)
+				self.FindDiscThresh(0.02, 2, fpr_cat2, tpr_cat2, thresh_cat2)
+				self.FindDiscThresh(0.01, 1, fpr_cat1, tpr_cat1, thresh_cat1)
+				self.FindDiscThresh(0.01, 2, fpr_cat2, tpr_cat2, thresh_cat2)
 					
+				#mindiff = 999
+				#bestIdx = 0
+				#for i, fpr in enumerate(fpr_cat2):
+				#	diff = abs(fpr - 0.02)
+				#	if diff < mindiff:
+				#		mindiff = diff
+				#		bestIdx = i
+				#print("FPR ~ 2% cat2 (sig)",cat2,self._catnames[cat2],"fpr",fpr_cat2[bestIdx],"tpr",tpr_cat2[bestIdx],"thresh cat2",thresh_cat2[bestIdx])
+					
+				#use cat1 bc this is always label 1 (phys bkg) based on how the classes were paired
+				#so the positive label will be 1 (ie if something is classified as phys bkg, it should have ypred = [1, 0, 0] instead of ie [0, 1, 0] for cat 1 vs cat2)
 				ax.plot(
 					fpr_cat1,
 					tpr_cat1,
@@ -246,16 +261,18 @@ class ModelBase(ABC):
 		ax.grid()
 		#focus on discriminating region of interest
 		if(zoom):
-			ax.set_ylim([5e-3, 5e-1])
-			ax.set_xlim([0,0.05])
+			ymin = 7e-1
+			xmax = 0.1
 			fname += "_zoom"
 		else:
-			ax.set_ylim([1e-6,1.])
-			ax.set_xlim([0,1])
-		title=self._name+"\n 1-v-1 ROC"
+			ymin = 1e-6
+			xmax = 1.
+		ax.set_ylim([ymin, 1.])
+		ax.set_yticks(np.arange(ymin,1,0.05))
+		ax.set_xlim([0,xmax])
 		ax.set(
-			xlabel="FPR (background mistag rate)",
-			ylabel="1 - TPR (signal inefficiency)",
+			xlabel="background-as-signal mistag rate", #FPR
+			ylabel="signal efficiency", #1 - TPR
 			title=title
 		)
 		plotname = self._path+"/ROC_"+fname
@@ -320,6 +337,8 @@ class ModelBase(ABC):
 			else:  #multiclass
 				#plot physics bkg vs other bkgs
 				self.VizMulticlassROC(self._ytest, ypred,1)
+				#plot BH vs other bkgs
+				self.VizMulticlassROC(self._ytest, ypred,2,zoom=True)
 				#plot one-v-one for each class
 				self.VizMulticlassROC(self._ytest, ypred,-1)
 				self.VizMulticlassROC(self._ytest, ypred,-1,zoom=True)

@@ -58,8 +58,10 @@ class ConvNeuralNetwork(ModelBase):
 		
 		#extract inputs and labels, remove unnecessary columns
 		#drop event + subcl cols
-		dropcols = ["sample","event","object","subcl","label"]
+		dropcols = ["sample","event","object","label"]
 		x = data.drop(dropcols,axis=1)
+		if "subcl" in x.columns:
+			x = data.drop(["subcl"],axis=1)
 		
 		
 		#drop not grid features
