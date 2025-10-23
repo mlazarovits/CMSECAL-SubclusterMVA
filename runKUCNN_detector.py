@@ -12,12 +12,18 @@ def runDNN(args):
     #data
     printstats = True
     reader = CSVReader(printstats)
+    reader.AddFile("csv/MET_R17_AL1NpSC_nolumimask_v31_MET_AOD_Run2017B-09Aug2019_UL2017_rsb-v1_superclusters_defaultv7_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")
+    reader.AddFile("csv/DoubleEG_R17_AL1SelEle_nolumimask_v31_DoubleEG_AOD_Run2017B-09Aug2019_UL2017-v1_superclusters_defaultv7_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")
     reader.AddFile("csv/MET_R18_AL1NpSC_DEOnly_v31_MET_AOD_Run2018B-15Feb2022_UL2018-v1_superclusters_defaultv7_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")
     reader.AddFile("csv/EGamma_R18_AL1SelEle_nolumimask_v31_EGamma_AOD_Run2018C-15Feb2022_UL2018-v1_superclusters_defaultv7_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")
-    #reader.AddFile("csv/MET_R22_AL1NpSC_v31_MET_AOD_Run2022C_superclusters_defaultv6_BHTrackVeto_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p25_emAlpha-1e-5.csv")
 
     reader.CleanData()
-    reader.SelectClass(1,"EGamma"); #choose for a certain class (first arg) to only come from sample (second arg)
+    reader.SelectClass(1,["EGamma","DoubleEG"]); #choose for a certain class (first arg) to only come from sample (second arg)
+    #reader.SelectClass(1,"DoubleEG"); #choose for a certain class (first arg) to only come from sample (second arg)
+
+
+    #set max number of samples with label to be nsamp
+    #reader.CapClass(3,3000)
     
     #balance classes via random undersampling - default
     reader.BalanceClasses([1,2,3])
