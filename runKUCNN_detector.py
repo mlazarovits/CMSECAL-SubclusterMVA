@@ -44,52 +44,30 @@ def runDNN(args):
     network_name += "_"+str(nepochs)+"epochs"
     if(early):
     	network_name += "_earlyStop"
-    
-    
-    #len(filters) = # layers
-    #filters[i] = # filters at ith layer
-    if(args.arch == "default"):
-    	network_name += "_"+args.arch
-    	filters = [64, 64, 64] 
-    elif(args.arch == "xsmall3"):
-    	network_name += "_"+args.arch
-    	filters = [3, 3] 
-    elif(args.arch == "small2"):
-    	network_name += "_"+args.arch
-    	filters = [2, 2, 2] 
-    elif(args.arch == "small3"):
-    	network_name += "_"+args.arch
-    	filters = [3, 3, 3] 
-    elif(args.arch == "small4"):
-    	network_name += "_"+args.arch
-    	filters = [4, 4, 4] 
-    elif(args.arch == "small8"):
-    	network_name += "_"+args.arch
-    	filters = [8, 8, 8] 
-    #elif(args.arch == "dual"):
-    #	network_name += "_"+args.arch
-    #	filters = [8, 8, 8] 
-    #	model = dualConvNeuralNetwork(data,filters,network_name)
-    #	mask1 = (3,3) #spikes
-    #	mask2 = (3,1) #beam halo
-    #	model.BuildModel(mask1, mask2)
-    #elif(args.arch == "sublead"):
-    #	network_name += "_"+args.arch
-    #	filters = [8, 8, 8]
-    #	print("Visualizing subleading maps") 
-    #	model = ConvNeuralNetwork(sublead_subcls,filters,network_name)
-    #	model.BuildModel()
-    #	model.SetCategoryNames(catToName,catToColor)
-    #	model.VizInputs()
-    #	exit()
-    else:
+   
+    network_name += "_"+args.arch
+    arch_map = {}
+    arch_map["default"] = [64, 64, 64] 
+    arch_map["xsmall3"] = [3, 3] 
+    arch_map["small2"] = [2, 2, 2] 
+    arch_map["small3"] = [3, 3, 3] 
+    arch_map["small4"] = [4, 4, 4] 
+    arch_map["small8"] = [8, 8, 8] 
+ 
+    if args.arch not in arch_map.keys():
     	print("Invalid architecture selected",args.network)
     	exit()
     
+    filters = arch_map[args.arch] 
     
     model = ConvNeuralNetwork(data,filters,network_name)
     model.BuildModel()
     model.SetCategoryNames(catToName,catToColor)
+    if(args.testNetwork):
+        print("Evaluating network",network_name)
+        model.TestModel(1,True)
+        return
+    
     #visualize inputs
     model.VizInputs()
     model.CompileModel()
@@ -110,10 +88,10 @@ def runDNN(args):
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","small4","small3","small2","xsmall3"],default="small3")
-	#parser.add_argument('--cols','-c',help="which set of inputs to run - combination of E, r, t, xMulty, normx",nargs='+',default=["EMultr"])
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
-	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
+	parser.add_argument('--testNetwork',help='evaluate trained network specified by other flags',default=False,action='store_true')
+	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	args = parser.parse_args()
 
 	runDNN(args)
