@@ -13,8 +13,12 @@ def runDNN(args):
 	reader.AddFile("csv/GJets_R18_InvMetPho30_v31_GJets_HT-400To600_TuneCP5_AODSIM_RunIISummer20UL18RECO_photons_defaultv3p10_noIso_isoBkgSel_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")
 	reader.AddFile("csv/QCD_R18_InvMET100_v31_QCD_HT300to500_TuneCP5_AODSIM_RunIISummer20UL18RECO_photons_defaultv3p10_noIso_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")	
 	
-	
 	reader.CleanData()
+	#cap energy of isolated bkg to remove dependence
+	if(args.reweightClasses):
+		reader.ReweightClasses(6,4,"energy")
+		if(args.extra is None):
+			args.extra = "reweighted"
 	data = reader.GetData()
 
 	#labels
@@ -89,11 +93,9 @@ def runDNN(args):
 	isobkg = len(data[data["label"] == 4])
 	nonisobkg = len(data[data["label"] == 6])
 	print(" ",tot, ("subclusters, iso bkg: "+str(isobkg)+" {:.2f}%, noniso bkg: "+str(nonisobkg)+" {:.2f}%").format(isobkg/tot,nonisobkg/tot))
-	
 
 
 		
-	
 	network_name = "KU-DNN_photonID"
 	if args.extra is not None:
 		network_name += "_"+args.extra
@@ -125,6 +127,11 @@ def runDNN(args):
 				args.exclude = args.exclude.replace("+","p")
 			network_name += "_excludingFeature_"+args.exclude
 
+	if(args.dryRun):
+		cols.append("energy")
+	if(args.reweightClasses):
+		cols.append("weight")
+
 	print("features used",cols)	
 	data = data[cols]
 	network_name += "_"+str(nepochs)+"epochs"
@@ -146,9 +153,13 @@ def runDNN(args):
 	
 	
 	model = DeepNeuralNetwork(data,nodes,network_name)
-	model.SetCategoryNames(catToName,catToColor)
-	model.VizInputs()
 	model.BuildModel()
+	model.SetCategoryNames(catToName,catToColor)
+	if(args.testNetwork):
+	    print("Evaluating network",network_name)
+	    model.TestModel(1,True)
+	    return
+	model.VizInputs()
 	#visualize inputs
 	model.CompileModel()
 	model.summary()
@@ -168,6 +179,8 @@ def main():
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
 	parser.add_argument("--exclude",help='exclude feature from training',default=None)
+	parser.add_argument("--reweightClasses",help="reweight classes",default=False,action='store_true')
+	parser.add_argument('--testNetwork',help='evaluate trained network specified by other flags',default=False,action='store_true')
 	args = parser.parse_args()
 
 	runDNN(args)

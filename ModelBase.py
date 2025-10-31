@@ -30,11 +30,6 @@ class ModelBase(ABC):
 	def ProcessData(self, data):
 		pass
 
-	def TrainModel(self,x,y,epochs = 1,viz:bool = False,verb= 0):
-		his = self._model.fit(x,y,epochs=epochs,verbose=verb)
-		if viz:
-			VizLoss(his)
-
 	def SetCategoryNames(self, catnames, catcolors = {}):
 		self._catnames = catnames
 		self._catcolors = catcolors
@@ -75,7 +70,7 @@ class ModelBase(ABC):
 			if diff < mindiff:
 				mindiff = diff
 				bestIdx = i
-		print("FPR ~",fpr_thresh,",cat (sig)",ncat,self._catnames[ncat],"fpr",fpr_cat[bestIdx],"tpr",tpr_cat[bestIdx],"thresh on sig cat",thresh_cat[bestIdx])
+		print("FPR ~"+str(fpr_thresh)+", cat (sig)",ncat,self._catnames[ncat],"fpr",fpr_cat[bestIdx],"tpr",tpr_cat[bestIdx],"thresh on sig cat",thresh_cat[bestIdx])
 
 	
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
@@ -88,11 +83,14 @@ class ModelBase(ABC):
 		for y in range(len(ytrue)):
 			ytrue_1D.append(ytrue[y][pos_label])
 			ypred_1D.append(ypred[y][pos_label])
-		print("ytrue_1D",ytrue_1D[0], "ypred_1D",np.unique(ypred_1D))
 		#dont need to give 'pos label' to roc_curve since those values have been selected above
 		fpr, tpr, thresh = roc_curve(ytrue_1D, ypred_1D)
-		print("# fpr",len(fpr),"# tpr",len(tpr),"# thresh",len(thresh))
-		print("thresh",thresh)
+
+		pos_cat = np.zeros(ytrue[0].shape)
+		pos_cat = [1 if idx == pos_label else 0 for idx, i in enumerate(pos_cat)]
+		cat = self._lb.inverse_transform([pos_cat])[0][0]
+		self.FindDiscThresh(0.02, cat, fpr, tpr, thresh)
+		self.FindDiscThresh(0.01, cat, fpr, tpr, thresh)
 		fig = plt.figure()
 		ax = plt.gca()
 		col = "pink" #also get from dict?
@@ -117,11 +115,10 @@ class ModelBase(ABC):
 		ax.set(
 			xlabel="Background mistag",
 			ylabel="Signal efficiency",
-			title=self._name+"\n"+class1name+" vs "+class2name+" ROC"
+			title=self._name+"\n"+class1name+" (sig) vs "+class2name+" (bkg) ROC"
 		)
 		ax.set_ylim([5e-1, 1.0])
-		ax.set_xlim([1e-6,0.2])
-		ax.set_yscale('log')	
+		ax.set_xlim([1e-6,0.5])
 		ax.grid()
 
 		'''
@@ -163,6 +160,9 @@ class ModelBase(ABC):
 			fname = catname+"_vs_all"
 			
 			fpr, tpr, thresh = roc_curve(ytrue[:,cat], ypred[:, cat])
+			print("cat",catname,"vs all")
+			self.FindDiscThresh(0.02, cat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.01, cat, fpr, tpr, thresh)
 			
 			#do 1- TPR
 			#tpr = [1 - i for i in tpr]
@@ -223,10 +223,10 @@ class ModelBase(ABC):
 
 				#get FPR (misid) ~ 0.02
 				#find index of entry in tpr for element that is closest to 0.02
-				self.FindDiscThresh(0.02, 1, fpr_cat1, tpr_cat1, thresh_cat1)
-				self.FindDiscThresh(0.02, 2, fpr_cat2, tpr_cat2, thresh_cat2)
-				self.FindDiscThresh(0.01, 1, fpr_cat1, tpr_cat1, thresh_cat1)
-				self.FindDiscThresh(0.01, 2, fpr_cat2, tpr_cat2, thresh_cat2)
+				self.FindDiscThresh(0.02, cat1, fpr_cat1, tpr_cat1, thresh_cat1)
+				self.FindDiscThresh(0.02, cat2, fpr_cat2, tpr_cat2, thresh_cat2)
+				self.FindDiscThresh(0.01, cat1, fpr_cat1, tpr_cat1, thresh_cat1)
+				self.FindDiscThresh(0.01, cat2, fpr_cat2, tpr_cat2, thresh_cat2)
 					
 				#mindiff = 999
 				#bestIdx = 0
@@ -302,7 +302,10 @@ class ModelBase(ABC):
 			callbacks_list.append(earlystop_callback)
 		#80/20 train/val split (of training data)
 		#print("ytrain shape",self._ytrain.shape,np.array(self._ytrain).shape,np.array(self._ytrain)[0].shape,type(self._ytrain),type(np.array(self._xtrain)))
-		his = self._model.fit(self._xtrain,self._ytrain,epochs=epochs,verbose=verb,validation_split=0.2,callbacks=callbacks_list,batch_size=batch)
+		if self._wtrain is None:
+			his = self._model.fit(self._xtrain,self._ytrain,epochs=epochs,verbose=verb,validation_split=0.2,callbacks=callbacks_list,batch_size=batch)
+		else:
+			his = self._model.fit(self._xtrain,self._ytrain,sample_weight=self._wtrain,epochs=epochs,verbose=verb,validation_split=0.2,callbacks=callbacks_list,batch_size=batch)
 		#save model with lowest validation loss
 		if viz:
 			self.VizMetric(his,"loss")

@@ -149,6 +149,39 @@ class CSVReader:
         #replace all rows with label l by this sampled subset
         self._data = pd.concat([self._data[self._data['label'] != nclass], sampled_subset], ignore_index=True)
 
+    #cut off samples depending on feature < val
+    def CapFeature(self,nclass,feature,val):
+    	classcond = self._data["label"] == nclass
+    	featcond = self._data[feature] >= val
+    	#remove rows that satisfy both of the above conditions
+    	self._data = self._data[~(classcond & featcond)]
+
+    #reweigh target_class to bench_class
+    #apply weights to target class
+    def ReweightClasses(self,bench_class,target_class,feature):
+    	feat_bench = self._data.loc[self._data['label'] == bench_class, feature]
+    	feat_target = self._data.loc[self._data['label'] == target_class, feature]
+
+    	bins = np.linspace(self._data[feature].min(), self._data[feature].max(), 50)
+
+    	#reweigh histograms
+    	hist_bench, _ = np.histogram(feat_bench,bins=bins,density=True)
+    	hist_target, _ = np.histogram(feat_target,bins=bins,density=True)
+
+    	#compute ratio for reweighting (w = bench / target s.t. w*target = bench)
+    	#ie reweight target to match bench
+
+    	ratio = np.divide(hist_bench, hist_target, out=np.zeros_like(hist_target), where=hist_target>0)
+
+    	#assign weight to each target sample
+    	bin_indices = np.digitize(feat_target, bins) - 1
+    	weights = [ratio[x] if x < len(ratio) else 0 for x in bin_indices]
+    	#weights = ratio[bin_indices]
+
+    	#add to dataframe
+    	self._data.loc[self._data["label"] == target_class, "weight"] = weights
+    	self._data.loc[self._data["label"] == bench_class, "weight"] = 1.0
+
 
     def BalanceClasses(self, labels):
         sizes = {}

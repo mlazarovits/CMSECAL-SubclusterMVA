@@ -14,6 +14,10 @@ class DeepNeuralNetwork(ModelBase):
 		self._nNodes = None
 		self._xtrain = None
 		self._ytrain = None
+		self._wtrain = None
+		self._xtest = None
+		self._ytest = None
+		self._wtest = None
 		#plot format
 		self._form = "pdf"
 		self._path = "results/"
@@ -41,11 +45,21 @@ class DeepNeuralNetwork(ModelBase):
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
 		self._nNodes = nNodes
 	
-		x, y = self.ProcessData(data)
+		self._xtrain = None
+		self._ytrain = None
+		self._wtrain = None
+		self._xtest = None
+		self._ytest = None
+		self._wtest = None
+		rand = 43 #change to random number to randomize
+		x, y, w = self.ProcessData(data)
 		#print("norm",x[:5],max(x[:,0]))
 		#80/20 train/test split
-		rand = 43 #change to random number to randomize
-		self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
+		#if weights have been specified
+		if(len(w) > 0):
+			self._xtrain, self._xtest, self._ytrain, self._ytest, self._wtrain, self._wtest = train_test_split(x,y,w,test_size=0.2,random_state=rand)
+		else:
+			self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
 		self._ytrain = np.asarray([ np.asarray(i) for i in self._ytrain])
 		#print(self._xtrain.shape[0],"training samples",self._ytrain.shape,type(self._ytrain),type(self._ytrain[0]),self._ytrain[0])
 	
@@ -57,22 +71,29 @@ class DeepNeuralNetwork(ModelBase):
 		labels = np.array(labels).reshape(-1,1)
 		self._lb = OneHotEncoder(sparse_output=False)
 		y = self._lb.fit_transform(labels)
+
 	
 		#print("labels",np.unique(labels),"transformed labels",y,"catnames",self._catnames,"classes",self._lb.categories_)
 	
 		#extract inputs and labels, remove unnecessary columns
 		#drop event + subcl cols
 		dropcols = ["sample","event","object","subcl","label"]
+		if("weight" in data.columns):
+			weights = data["weight"].to_numpy()
+			dropcols.append("weight")
+		else:
+			weights = np.array([])
 		x = data.drop(dropcols,axis=1)
 
 		self._features = x.columns
 		x = x.to_numpy()
+
 		#print("unnorm",x[0:5],max(x[:,0]))
 		##normalize data
 		self._scaler = MinMaxScaler()
 		self._scaler.fit(x)
 		x = self._scaler.transform(x) 
-		return x, y
+		return x, y, weights
 
 	#fully connected network
 	def BuildModel(self):
@@ -111,10 +132,12 @@ class DeepNeuralNetwork(ModelBase):
 		labels = self._lb.categories_[0]
 		all_labels = self._lb.inverse_transform(self._ytrain)
 		inputs = [[[] for l in labels] for f in self._features]
+		weights = [[] for l in labels]
 		xtrain = self._scaler.inverse_transform(self._xtrain)
 		for i, f in enumerate(inputs):
 			self._inputHists.append([])
 			plotname = self._path+"/"+self._features[i]+"."+self._form
+			bins = np.linspace(xtrain[:,i].min(), xtrain[:,i].max(), 50)
 			for j, x in enumerate(xtrain):
 				#print(i,x,self._ytrain[j],self._features[i])
 				#this sample needs to be put in j == label[k]
@@ -123,8 +146,13 @@ class DeepNeuralNetwork(ModelBase):
 				#lidx = np.flatnonzero(self._lb.categories_ == all_labels[j])[0]
 				#print(i,self._features[i])
 				inputs[i][lidx].append(x[i])
+				if(i == 0 and self._wtrain is not None):
+					weights[lidx].append(self._wtrain[j])
 			for j, l in enumerate(labels):
-				ns, bins, _ = plt.hist(inputs[i][j],label=self._catnames[l],log=True,bins=50,histtype=u'step')
+				if(self._wtrain is not None):
+					ns, bins, _ = plt.hist(inputs[i][j],label=self._catnames[l],log=True,bins=bins,histtype=u'step',weights=weights[j])
+				else:
+					ns, bins, _ = plt.hist(inputs[i][j],label=self._catnames[l],log=True,bins=bins,histtype=u'step')
 				#self._inputHists[feature][label][ns, bins][bin #]
 				bindict = {}
 				bindict["ns"] = ns
