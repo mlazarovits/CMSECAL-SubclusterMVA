@@ -7,6 +7,7 @@ from sklearn.preprocessing import normalize, MinMaxScaler, OneHotEncoder
 import os
 import subprocess
 import numpy as np
+import pandas as pd
 
 class DeepNeuralNetwork(ModelBase):
 	def __init__(self):
@@ -31,28 +32,43 @@ class DeepNeuralNetwork(ModelBase):
 		self._inputHists = None
 		super().__init__()
 
-	def __init__(self, data, nNodes, name = "model"):
+	def __init__(self, data, nNodes, cols, catnames, catcolors, name = "model"):
 		self._bestModel = None
 		self._lowestValLoss = 999
 		self._form = "pdf"
 		self._name = name
 		self._path = "results/"+self._name
-		self._catnames = {} 
-		self._catcolors = {}
+		self._catnames = catnames 
+		self._catcolors = catcolors
 		self._inputHists = []
 		if not os.path.exists(self._path):
 			os.mkdir(self._path)
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
 		self._nNodes = nNodes
 	
+		self._dropcols = ["sample","event","object","label","Energy"]
 		self._xtrain = None
 		self._ytrain = None
 		self._wtrain = None
 		self._xtest = None
 		self._ytest = None
 		self._wtest = None
+		self._xtrain_energy = None
+		self._xtest_energy = None
+		self._ytrain_energy = None
+		self._ytest_energy = None 
 		rand = 43 #change to random number to randomize
-		x, y, w = self.ProcessData(data)
+		#fir onehot enocoder
+		self._lb = OneHotEncoder(sparse_output=False)
+		labels = data["label"].to_numpy()
+		labels = labels.reshape(-1,1)
+		self._lb.fit(labels)
+		self._features = [i for i in cols if i not in self._dropcols] 
+		x, y, w, energy = self.ProcessData(data)
+		#normalize data
+		self._scaler = MinMaxScaler()
+		self._scaler.fit(x)
+		x = self._scaler.transform(x)
 		#print("norm",x[:5],max(x[:,0]))
 		#80/20 train/test split
 		#if weights have been specified
@@ -60,40 +76,49 @@ class DeepNeuralNetwork(ModelBase):
 			self._xtrain, self._xtest, self._ytrain, self._ytest, self._wtrain, self._wtest = train_test_split(x,y,w,test_size=0.2,random_state=rand)
 		else:
 			self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
+		if(len(energy) > 0):
+			self._xtrain_energy, self._xtest_energy, self._ytrain_energy, self._ytest_energy = train_test_split(energy, y, test_size = 0.2, random_state = rand)
 		self._ytrain = np.asarray([ np.asarray(i) for i in self._ytrain])
-		#print(self._xtrain.shape[0],"training samples",self._ytrain.shape,type(self._ytrain),type(self._ytrain[0]),self._ytrain[0])
+		
+		#make hists of training data
+		indata = pd.DataFrame(data=self._scaler.inverse_transform(self._xtrain),columns=self._features)
+		indata['label'] = self._lb.inverse_transform(self._ytrain)
+		self.MakeHists(indata,self._features,catnames) 
 	
-		#shape of input data
-		super().__init__()
+		#super().__init__()
 
 	def ProcessData(self, data):
-		labels = data["label"]
-		labels = np.array(labels).reshape(-1,1)
-		self._lb = OneHotEncoder(sparse_output=False)
-		y = self._lb.fit_transform(labels)
+		#remove dropcols from cols to pass to hist maker
+		dropcols = [] 
+		print("features",self._features)	
+		print("data",data.shape)	
+		labels = data["label"].to_numpy()
+		labels = labels.reshape(-1,1)
+		print("labels",labels)
+		y = self._lb.transform(labels)
 
-	
 		#print("labels",np.unique(labels),"transformed labels",y,"catnames",self._catnames,"classes",self._lb.categories_)
 	
 		#extract inputs and labels, remove unnecessary columns
 		#drop event + subcl cols
-		dropcols = ["sample","event","object","subcl","label"]
+		energy = np.array([])
+		if "Energy" in data.columns:
+			dropcols.append("Energy")
+			energy = data["Energy"].to_numpy()
+			data = data.drop("Energy",axis=1)
+			
+		weights = np.array([])
 		if("weight" in data.columns):
 			weights = data["weight"].to_numpy()
 			dropcols.append("weight")
-		else:
-			weights = np.array([])
-		x = data.drop(dropcols,axis=1)
+			data = data.drop("weight",axis=1)
 
-		self._features = x.columns
-		x = x.to_numpy()
+		data = data[self._features] 
+		x = data.to_numpy()
+		print("x",x.shape,x[0],"y",y[0],"data[labels]",labels[0])	
+		return x, y, weights, energy
 
-		#print("unnorm",x[0:5],max(x[:,0]))
-		##normalize data
-		self._scaler = MinMaxScaler()
-		self._scaler.fit(x)
-		x = self._scaler.transform(x) 
-		return x, y, weights
+
 
 	#fully connected network
 	def BuildModel(self):
@@ -209,3 +234,9 @@ class DeepNeuralNetwork(ModelBase):
 			ax2.legend(handles = legend_elements_ax2)
 			print("Saving predicted "+self._features[i]+" plot to",plotname)
 			fig.savefig(plotname,format=self._form)
+
+
+
+
+
+
