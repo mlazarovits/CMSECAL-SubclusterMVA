@@ -57,9 +57,13 @@ class CSVReader:
     def PrintStats(self):
         sig = len(self._data[self._data["label"] == 0])
         nom = len(self._data[self._data["label"] == 1])
+        isobkg = len(self._data[self._data["label"] == 4])
+        nonisobkg = len(self._data[self._data["label"] == 6])
         #gmsb = len(self._data[self._data["sample"].str.contains("GMSB") == True])
         gogo = len(self._data[self._data["sample"].str.contains("gogo") == True])
         sqsq = len(self._data[self._data["sample"].str.contains("sqsq") == True])
+        if(sig == 0):
+                sig = gogo + sqsq
         if gogo == 0:
         	sig = sqsq
         gjets = len(self._data[self._data["sample"].str.contains("GJets") == True])
@@ -72,7 +76,10 @@ class CSVReader:
         phys = len(self._data[self._data["label"] == 1])
         BH = len(self._data[self._data["label"] == 2])
         spike = len(self._data[self._data["label"] == 3])
-        print(" ",tot, ("subclusters, phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
+        if(BH > 0):
+                print(" ",tot, ("subclusters, phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
+        if(isobkg > 0):
+        	print(" ",tot, ("subclusters, isobkg: "+str(isobkg)+" {:.2f}%, nonisobkg: "+str(nonisobkg)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
         print(" ",tot, ("subclusters, data: "+str(d)+" {:.2f}%, GJets: "+str(gjets)+" {:.2f}%, QCD "+str(qcd)+" {:.2f}%, signal "+str(sig)+" {:.2f}%").format(d/tot,gjets/tot,qcd/tot,sig/tot))
     
         
@@ -97,11 +104,19 @@ class CSVReader:
             print("after GMSB bkg removal")
             self.PrintStats()
 
-        #put extra cuts on subcluster energy, etc.  
+        #put extra cuts on subcluster energy, etc.
+        self.ApplyColCut("Energy",30) 
+
+        #drop nan rows
+        for col in self._data.columns:
+            if(self._data[col].isna().any()):
+                print("column",col,"has nans in rows")
         self._data.dropna(how="any")
         if(self._printstats):
             print('after dropna')
             self.PrintStats()
+	
+
 
     #only use SCs with 1 subcluster
     #can remove if CSVs are updated accordingly
@@ -132,6 +147,10 @@ class CSVReader:
             print('after removing subleading subclusters')
             self.PrintStats()
         return sublead_data
+
+    #keep rows with values in col > val
+    def ApplyColCut(self, col, val):
+        self._data = self._data[self._data[col] > val]
 
 
     def SelectClass(self,nclass,samps):
@@ -204,3 +223,29 @@ class CSVReader:
     def GetData(self):
         return self._data
 
+    #creates new columns that are ratios of given cols and denom column
+    def DivideCols(self, cols, denom):
+        newnames = []
+        for col in cols:
+            colname = col+'Ov'+denom
+            newnames.append(colname)
+            self._data[colname] = self._data[col] / self._data[denom]
+            #print("col",self._data[self._data.isna().any(axis=1)][colname])
+        return newnames
+
+    def MakeSigmas(self, cols):
+        for col in cols:
+            if "Var" not in col:
+                continue
+            newcolname = col[:col.find("Var")]+"Sig"
+            self._data[newcolname] = np.sqrt(self._data[col])
+
+    def SetFeatureToVal(self, feature, val):
+        self._data[feature] = val
+
+    def SetFeatureFromValToVal(self, feature, oldval, newval):
+        self._data.loc[self._data[feature] == oldval, feature] = newval
+
+    def RemoveEntries(self, feature, val):
+        mask = self._data[feature] == val
+        self._data = self._data[~mask]
