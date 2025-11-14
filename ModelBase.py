@@ -66,7 +66,7 @@ class ModelBase(ABC):
 		mindiff = 999
 		bestIdx = 0
 		for i, fpr in enumerate(fpr_cat):
-			diff = abs(fpr - 0.02)
+			diff = abs(fpr - fpr_thresh)
 			if diff < mindiff:
 				mindiff = diff
 				bestIdx = i
@@ -88,8 +88,8 @@ class ModelBase(ABC):
 		#put in one-hot encoding
 		pos_cat = [1 if idx == pos_label else 0 for idx, i in enumerate(pos_cat)]
 		cat = self._lb.inverse_transform([pos_cat])[0][0]
-		self.FindDiscThresh(0.02, cat, fpr, tpr, thresh)
-		self.FindDiscThresh(0.01, cat, fpr, tpr, thresh)
+		self.FindDiscThresh(0.05, cat, fpr, tpr, thresh)
+		self.FindDiscThresh(0.1, cat, fpr, tpr, thresh)
 		#tpr = signal efficiency
 		#1 - tpr = fnr = signal inefficiency
 		#fpr = background mistag rate
@@ -129,8 +129,8 @@ class ModelBase(ABC):
 			ylabel="Signal efficiency",
 			title=self._name+"\n"+class1name+" (sig) vs "+class2name+" (bkg) ROC"
 		)
-		ax.set_ylim([0., 1.0])
-		ax.set_xlim([1e-6,0.5])
+		ax.set_ylim([0.8, 1.0])
+		ax.set_xlim([1e-6,0.3])
 		ax.grid()
 		if(labels != [""]):
 			ax.legend()
@@ -149,7 +149,7 @@ class ModelBase(ABC):
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
 	def VizROC(self, ytrue, ypred, class1name = "sig", class2name = "bkg", pos_label=1, fextra=""):
 		fpr, tpr = self.MakeROC(ytrue, ypred, pos_label)
-		self.PlotROCs([fpr.tolist()], [tpr.tolist()], [""],["pink"], fextra)
+		self.PlotROCs([fpr.tolist()], [tpr.tolist()], [""],["pink"], fextra, class1name, class2name)
 	
 	#ytrue and ypred are given in onehot form	
 	#if cat = -1, plot one vs one for all classes
@@ -338,8 +338,8 @@ class ModelBase(ABC):
 		keys = list(files.keys())
 		
 		#load best model
+		print("Loading model",files[min(keys)])
 		self._model.load_weights(files[min(keys)])	
-
 
 	def TestModel_EnergySplit(self,x,energy,ytrue,ypred,pos_label,batch_size=1,verb=1,fextra=""):
 		#do preprocessing for energy-separated roc curves
