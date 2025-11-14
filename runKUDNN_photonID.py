@@ -13,30 +13,33 @@ def runDNN(args):
 	reader.AddFile("csv/QCD_R18_InvMET100_v31_QCD_HT300to500_TuneCP5_AODSIM_RunIISummer20UL18RECO_photons_defaultv3p10_noIso_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")	
 
 	
-	reader.CleanData()
 	reader.MakeSigmas(['EtaVar','PhiVar'])
 	shape_cols = ["EtaSig","PhiSig","EtaPhiCov","majorLength", "minorLength"]
 	iso_cols = ["hcalTowerSumEtConeDR04","trkSumPtSolidConeDR04","trkSumPtHollowConeDR04","hadTowOverEM","ecalRHSumEtConeDR04"]
 	#create new columns of relative isolation
-	reader.DivideCols(iso_cols,'Pt')
-	iso_cols = [i+"OvPt" for i in iso_cols]
+	iso_cols_pt = reader.DivideCols(iso_cols,'Pt')
+	reader.BarrelOnly()
+	reader.CleanData()
 	reader.BalanceClasses([4,6])
 	data = reader.GetData()
-
 
 	#process SMS data - will add test nonisobkg data after train_test_split in DeepNN ctor
 	SMSreader = CSVReader(printstats)
 	SMSreader.AddFile("csv/SMS_Sig_SVIPM100_v31_SMS-GlGl_AODSIM_mGl-2000_mN2-1500_mN1-500_photons_defaultv3p10_noIso_beta0-1e-5_m0-0p0-0p0-0p0_W0diag-0p013-0p013-33p333_nu0-3_NperGeV-0p0333333_emAlpha-1e-5.csv")
 	SMSreader.MakeSigmas(['EtaVar','PhiVar'])
+	SMSreader.DivideCols(iso_cols,'Pt')
 	#only want photons from n2 (label 0) and non iso bkg (label 6)
 	SMSreader.RemoveEntries('label',1)
 	SMSreader.RemoveEntries('label',5)
 	#switch label 0 to label 4 to act as 'iso bkg' sig
 	SMSreader.SetFeatureFromValToVal('label',0,4)
+	SMSreader.BarrelOnly()
 	SMSreader.CleanData()
 	#SMSreader.CapClass(4,3000)
 	#SMSreader.BalanceClasses([4,6])
 	sms_data = SMSreader.GetData()
+
+	iso_cols = iso_cols_pt
 
 	#labels
 	#unmatched = -1
