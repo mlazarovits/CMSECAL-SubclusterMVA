@@ -90,6 +90,7 @@ class ModelBase(ABC):
 		cat = self._lb.inverse_transform([pos_cat])[0][0]
 		self.FindDiscThresh(0.05, cat, fpr, tpr, thresh)
 		self.FindDiscThresh(0.1, cat, fpr, tpr, thresh)
+		self.FindDiscThresh(0.2, cat, fpr, tpr, thresh)
 		#tpr = signal efficiency
 		#1 - tpr = fnr = signal inefficiency
 		#fpr = background mistag rate
