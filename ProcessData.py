@@ -252,10 +252,10 @@ class CSVReader:
 
 
     def BarrelOnly(self):
-        mask = (self._data["EtaCenter"] > -1.5 & self._data["EtaCenter"] < 1.5)
+        mask = ((self._data["EtaCenter"] > -1.5) & (self._data["EtaCenter"] < 1.5))
         self._data = self._data[mask]
 
 
     def EndcapOnly(self):
-        mask = (self._data["EtaCenter"] > -1.5 & self._data["EtaCenter"] < 1.5)
+        mask = ((self._data["EtaCenter"] > -1.5) & (self._data["EtaCenter"] < 1.5))
         self._data = self._data[~mask]
