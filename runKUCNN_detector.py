@@ -5,8 +5,8 @@ from ConvNN import ConvNeuralNetwork
 from dualConvNN import dualConvNeuralNetwork
 import numpy as np
 
-# DNN for identifying detector background (spikes + beam halo) from physics bkg
-def runDNN(args):
+# CNN for identifying detector background (spikes + beam halo) from physics bkg
+def runCNN(args):
     #using AL1IsoPho presel s.t. there is no MET cut to bias the presence + spectrum of detector bkgs in MET PD
     #AL1IsoPho = at least 1 isolated photon (standard presel iso)
     #data
@@ -65,7 +65,7 @@ def runDNN(args):
     model.SetCategoryNames(catToName,catToColor)
     if(args.testNetwork):
         print("Evaluating network",network_name)
-        model.TestModel(1,True)
+        model.TestModel()
         return
     
     #visualize inputs
@@ -94,7 +94,7 @@ def main():
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	args = parser.parse_args()
 
-	runDNN(args)
+	runCNN(args)
 
 if __name__ == "__main__":
 	main()
