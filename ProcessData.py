@@ -249,3 +249,13 @@ class CSVReader:
     def RemoveEntries(self, feature, val):
         mask = self._data[feature] == val
         self._data = self._data[~mask]
+
+
+    def BarrelOnly(self):
+        mask = (self._data["EtaCenter"] > -1.5 & self._data["EtaCenter"] < 1.5)
+        self._data = self._data[mask]
+
+
+    def EndcapOnly(self):
+        mask = (self._data["EtaCenter"] > -1.5 & self._data["EtaCenter"] < 1.5)
+        self._data = self._data[~mask]
