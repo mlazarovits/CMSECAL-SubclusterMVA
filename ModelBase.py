@@ -15,7 +15,8 @@ class ModelBase(ABC):
 	def __init__(self):
 		self._model = None
 		self._catnames = [] 
-		self._catcolors = [] 
+		self._catcolors = []
+		self._wtrain = None 
 		super().__init__()
 	
 	@abstractmethod
@@ -73,7 +74,7 @@ class ModelBase(ABC):
 		print("FPR ~"+str(fpr_thresh)+", cat (sig)",ncat,self._catnames[ncat],"fpr",fpr_cat[bestIdx],"tpr",tpr_cat[bestIdx],"thresh on sig cat",thresh_cat[bestIdx])
 
 
-	def MakeROC(self, ytrue, ypred, pos_label=1):
+	def MakeROC(self, ytrue, ypred, pos_label=1, fpr_threshs = []):
 		print("pos_label",pos_label,"# ytrue",len(ytrue),"# ypred",len(ypred),"ytrue",ytrue[0],"ypred",ypred[0])
 		#need to process ytrue and ypred s.t. they are given to roc_curve as 1D arrays of assignment (ytrue - 0 or 1) and prediction (score of 'signal'/positive class)
 		ytrue_1D = []
@@ -84,13 +85,13 @@ class ModelBase(ABC):
 		#dont need to give 'pos label' to roc_curve since those values have been selected above
 		fpr, tpr, thresh = roc_curve(ytrue_1D, ypred_1D)
 
-		pos_cat = np.zeros(ytrue[0].shape)
+		ytrue_test = np.zeros(ytrue[0].shape)
 		#put in one-hot encoding
-		pos_cat = [1 if idx == pos_label else 0 for idx, i in enumerate(pos_cat)]
-		cat = self._lb.inverse_transform([pos_cat])[0][0]
-		self.FindDiscThresh(0.05, cat, fpr, tpr, thresh)
-		self.FindDiscThresh(0.1, cat, fpr, tpr, thresh)
-		self.FindDiscThresh(0.2, cat, fpr, tpr, thresh)
+		pos_cat = [1 if idx == pos_label else 0 for idx, i in enumerate(ytrue_test)]
+		neg_cat = [1 if idx != pos_label else 0 for idx, i in enumerate(ytrue_test)]
+		poscat = self._lb.inverse_transform([pos_cat])[0][0]
+		for fpr_thresh in fpr_threshs:
+			self.FindDiscThresh(fpr_thresh, poscat, fpr, tpr, thresh)
 		#tpr = signal efficiency
 		#1 - tpr = fnr = signal inefficiency
 		#fpr = background mistag rate
@@ -148,8 +149,8 @@ class ModelBase(ABC):
 
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
-	def VizROC(self, ytrue, ypred, class1name = "sig", class2name = "bkg", pos_label=1, fextra=""):
-		fpr, tpr = self.MakeROC(ytrue, ypred, pos_label)
+	def VizROC(self, ytrue, ypred, class1name = "sig", class2name = "bkg", pos_label=1, fextra="", fpr_threshs = []):
+		fpr, tpr = self.MakeROC(ytrue, ypred, pos_label, fpr_threshs)
 		self.PlotROCs([fpr.tolist()], [tpr.tolist()], [""],["pink"], fextra, class1name, class2name)
 	
 	#ytrue and ypred are given in onehot form	
@@ -173,6 +174,8 @@ class ModelBase(ABC):
 			print("cat",catname,"vs all")
 			self.FindDiscThresh(0.02, cat, fpr, tpr, thresh)
 			self.FindDiscThresh(0.01, cat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.005, cat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.001, cat, fpr, tpr, thresh)
 			
 			#do 1- TPR
 			#tpr = [1 - i for i in tpr]
@@ -236,6 +239,10 @@ class ModelBase(ABC):
 				self.FindDiscThresh(0.02, cat2, fpr_cat2, tpr_cat2, thresh_cat2)
 				self.FindDiscThresh(0.01, cat1, fpr_cat1, tpr_cat1, thresh_cat1)
 				self.FindDiscThresh(0.01, cat2, fpr_cat2, tpr_cat2, thresh_cat2)
+				self.FindDiscThresh(0.005, cat1, fpr_cat1, tpr_cat1, thresh_cat1)
+				self.FindDiscThresh(0.005, cat2, fpr_cat2, tpr_cat2, thresh_cat2)
+				self.FindDiscThresh(0.001, cat1, fpr_cat1, tpr_cat1, thresh_cat1)
+				self.FindDiscThresh(0.001, cat2, fpr_cat2, tpr_cat2, thresh_cat2)
 					
 				#mindiff = 999
 				#bestIdx = 0
@@ -318,7 +325,7 @@ class ModelBase(ABC):
 		#save model with lowest validation loss
 		if viz:
 			self.VizMetric(his,"loss")
-		print("cats",self._catnames)
+		#print("cats",self._catnames)
 
 
 	def LoadBestModel(self):
@@ -352,11 +359,11 @@ class ModelBase(ABC):
 		print("Creating energy-separate ROC curves with energy bins",energy_ranges)
 		#create dataframe of xtest, ytrue, ypred
 		df_e = pd.DataFrame()
-		print("energy",energy[0],"ypred",ypred[0],'ytest',ytrue[0])
+		#print("energy",energy[0],"ypred",ypred[0],'ytest',ytrue[0])
 		df_e['energy'] = energy 
 		df_e['ypred'] = ypred.tolist()
 		df_e['ytrue'] = ytrue.tolist()
-		print("energy split - labels",np.unique(df_e['ytrue'].to_numpy()))
+		#print("energy split - labels",np.unique(df_e['ytrue'].to_numpy()))
 		mask_df_2 =df_e['ytrue'].apply(lambda x: x == [0, 1])
 		#do energy breakdown
 		fprs = []
@@ -378,7 +385,7 @@ class ModelBase(ABC):
 			ytest = [np.array(i) for i in ytest]
 			ypred = df_mask['ypred'].to_numpy()
 			ypred = [np.array(i) for i in ypred]
-			print("energy range",erange," - labels",np.unique(df_mask['ytrue'].to_numpy()))
+			#print("energy range",erange," - labels",np.unique(df_mask['ytrue'].to_numpy()))
 			#if no entries in energy range, skip
 			if(len(ytest) < 1):
 				continue
@@ -391,7 +398,7 @@ class ModelBase(ABC):
 			extralab += "_"+fextra
 		self.PlotROCs(fprs,tprs,labels,colors,extralab)
 	
-	def TestModel(self,batch_size=1,verb=1,validate_model = False):
+	def TestModel(self,batch_size=1,verb=1,validate_model = False, fpr_threshs = []):
 		self.LoadBestModel()
 		#save optimal model as .keras for frugally-deep
 		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
@@ -408,7 +415,7 @@ class ModelBase(ABC):
 			if labels == [4,6]:
 				#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
 				pos_label = 0
-			self.VizROC(self._ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label)
+			self.VizROC(self._ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs)
 			#do energy breakdown
 			if(self._xtest_energy is not None):
 				self.TestModel_EnergySplit(self._xtest,self._xtest_energy,self._ytest_energy,ypred,pos_label,batch_size=batch_size,verb=verb)
@@ -423,7 +430,8 @@ class ModelBase(ABC):
 			self.VizMulticlassROC(self._ytest, ypred,-1)
 			self.VizMulticlassROC(self._ytest, ypred,-1,zoom=True)
 
-	def ReplaceClass(self, external_sig, ncat, cols, catnames, nsamp = -1, fextra=""):
+	#external_class is the class you want to use ncat is the cat # you want to replace
+	def ReplaceClass(self, external_class, ncat, cols, catnames, nsamp = -1, fextra=""):
 		df2 = pd.DataFrame(data=self._scaler.inverse_transform(self._xtest),columns=cols) #remake dataframe with column names
 		if(len(self._xtest_energy) > 0):
 			df2['Energy'] = self._xtest_energy
@@ -431,14 +439,13 @@ class ModelBase(ABC):
 		df2['label'] = int_labels
 		#remove sig from df2 and replace with sig in df
 		df2 = df2[df2['label'] != ncat]
-		df = pd.concat([external_sig,df2],ignore_index=True)
+		df = pd.concat([external_class,df2],ignore_index=True)
 
 	
 		#sample only n samples of dataset
 		if(nsamp == -1):
 			nlabels = []
 			for l in np.unique(int_labels):
-				print("int label",l)
 				nlabels.append(len(df[df['label'] == l]))
 			nsamp = min(nlabels)
 		sampled_subset_pos = df[df['label'] == ncat].sample(n=nsamp, random_state=42)
@@ -464,7 +471,6 @@ class ModelBase(ABC):
 		x_hist = np.array([np.array(i) for i in x])
 		#make hists of training data
 		y_hist = ytrue_int 
-		print("x",len(x_hist),"y",len(y_hist))
 		histdata = pd.DataFrame(data=x_hist,columns=self._features)
 		histdata['label'] = y_hist
 		self.MakeHists(histdata,self._features,catnames,fextra) 
@@ -494,18 +500,16 @@ class ModelBase(ABC):
 		
 			histmin = []
 			histmax = []
-			print("catnames",catnames)
+			#print("catnames",catnames)
 			for j, l in enumerate(catnames.keys()):
 				mask = data['label'] == l
 				histdata = data[mask][col]
-				print("1 - label",catnames[l],l,"# hist inputs",len(histdata),len(data),len(data[mask]))
 				histmin.append(histdata.min())
 				histmax.append(histdata.max())
 			bins = np.linspace(min(histmin), max(histmax), 50)
 			for j, l in enumerate(catnames.keys()):
 				mask = data['label'] == l
 				histdata = data[mask][col].to_numpy()
-				print("2 - label",catnames[l],l,"# hist inputs",len(histdata))
 				ns, bins, _ = plt.hist(histdata,label=catnames[l],log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
 			plt.title(col)
 			plt.legend()
@@ -520,20 +524,17 @@ class ModelBase(ABC):
 			self.MakeMultiInputHist(data,f,catnames,fextra)
 
 
-	def TestModel_ExternalSignal(self,external_sig, cols,batch_size=1,verb=1):
+	def TestModel_ExternalSignal(self,external_sig, cols,batch_size=1,verb=1,fpr_threshs = []):
 		fextra = "testSet_SMS_as_signal"
 		catnamesmap = {4 : "gogo", 6 : self._catnames[6]}
-		print("cols",self._features)
 		x, ytrue, energy = self.ReplaceClass(external_sig,4,self._features,catnamesmap, -1,fextra)
 		
 		#done in ReplaceClass -> ProcessData
 		if(len(energy) > 0):
 			energy = np.array([[i] for i in energy])
-			print("energy",energy[0])
 		#normalize data for prediction
 		x = self._scaler.transform(x)
 		ypred = self._model.predict(x,batch_size=1,verbose=verb)
-		print("ypred",ypred[0])
 		if len(self._ytest[0]) == 2:
 			labels = []
 			classes = []
@@ -543,10 +544,10 @@ class ModelBase(ABC):
 			if labels == [4,6]:
 				#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
 				pos_label = 0
-			self.VizROC(ytrue, ypred,class1name="gogo",class2name="non iso bkg",pos_label=pos_label,fextra=fextra)
+			self.VizROC(ytrue, ypred,class1name="gogo",class2name="non iso bkg",pos_label=pos_label,fextra=fextra, fpr_threshs = fpr_threshs)
 
 		if len(energy) > 0:
-			print("# energies",len(energy),"# x",len(x),"# ytrue",len(ytrue),"# ypred",len(ypred))
+			#print("# energies",len(energy),"# x",len(x),"# ytrue",len(ytrue),"# ypred",len(ypred))
 			energy = np.array([i[0] for i in energy])
 			self.TestModel_EnergySplit(x,energy,ytrue,ypred,pos_label=pos_label,fextra=fextra)
 
