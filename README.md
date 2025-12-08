@@ -55,4 +55,6 @@ To be sure of the python version, you can create a conda environment with python
 ```
 conda create -n "env_name" python=3.11.X ipython tensorflow pandas matplotlib scikit-learn
 ```
-solved this issue and the model was able to be fit without any errors raising. Here, `X` is a specific version number. 
+solved this issue and the model was able to be fit without any errors raising. Here, `X` is a specific version number.
+
+Make sure the version of tensorflow/keras that was used to train and save the model is compatible with the recommended versions in your version of frugally-deep. This information will be in frugally-deep's README. This framework currently uses the frugally-deep version that relies on TF 2.17. 
