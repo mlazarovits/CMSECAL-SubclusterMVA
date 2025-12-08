@@ -10,13 +10,21 @@ import glob
 from itertools import combinations
 import numpy as np
 import pandas as pd
+import mplhep as hep
+import dask.array as da
+import dask.dataframe as dd
+
 
 class ModelBase(ABC):
 	def __init__(self):
+		hep.style.use("CMS")
 		self._model = None
 		self._catnames = [] 
 		self._catcolors = []
-		self._wtrain = None 
+		self._wtrain = None
+		self._train_gen = None
+		self._val_gen = None
+		self._test_gen = None
 		super().__init__()
 	
 	@abstractmethod
@@ -28,7 +36,11 @@ class ModelBase(ABC):
 		pass
 
 	@abstractmethod
-	def ProcessData(self, data):
+	def StripLabels(self, indata):
+		pass
+	
+	@abstractmethod
+	def MakeSamples(self, indata):
 		pass
 
 	def SetCategoryNames(self, catnames, catcolors = {}):
@@ -39,7 +51,7 @@ class ModelBase(ABC):
 		self._model.summary()
 	
 	@abstractmethod
-	def VizInputs(self):
+	def VizSamples(self):
 		pass
 
 	def VizMetric(self, history, fname):
@@ -72,9 +84,9 @@ class ModelBase(ABC):
 				mindiff = diff
 				bestIdx = i
 		print("FPR ~"+str(fpr_thresh)+", cat (sig)",ncat,self._catnames[ncat],"fpr",fpr_cat[bestIdx],"tpr",tpr_cat[bestIdx],"thresh on sig cat",thresh_cat[bestIdx])
+		return thresh_cat[bestIdx]
 
-
-	def MakeROC(self, ytrue, ypred, pos_label=1, fpr_threshs = []):
+	def MakeROC(self, ytrue, ypred, pos_label=1, fpr_threshs = [], ret_fpr_thresh = -1):
 		print("pos_label",pos_label,"# ytrue",len(ytrue),"# ypred",len(ypred),"ytrue",ytrue[0],"ypred",ypred[0])
 		#need to process ytrue and ypred s.t. they are given to roc_curve as 1D arrays of assignment (ytrue - 0 or 1) and prediction (score of 'signal'/positive class)
 		ytrue_1D = []
@@ -92,6 +104,9 @@ class ModelBase(ABC):
 		poscat = self._lb.inverse_transform([pos_cat])[0][0]
 		for fpr_thresh in fpr_threshs:
 			self.FindDiscThresh(fpr_thresh, poscat, fpr, tpr, thresh)
+		if ret_fpr_thresh != -1:
+			discr_thresh = self.FindDiscThresh(ret_fpr_thresh, poscat, fpr, tpr, thresh)
+	
 		#tpr = signal efficiency
 		#1 - tpr = fnr = signal inefficiency
 		#fpr = background mistag rate
@@ -102,7 +117,7 @@ class ModelBase(ABC):
 		#fpr = [1 - i for i in fpr]
 		#do 1 - TPR = FNR
 		#tpr = [1 - i for i in tpr]
-		return fpr, tpr
+		return fpr, tpr, ret_discr_thresh
 
 	def PlotROCs(self, fprs, tprs, labels, colors = [], fextra = "", class1name = "sig", class2name = "bkg"):
 		fig = plt.figure()
@@ -129,8 +144,8 @@ class ModelBase(ABC):
 		ax.set(
 			xlabel="Background mistag",
 			ylabel="Signal efficiency",
-			title=self._name+"\n"+class1name+" (sig) vs "+class2name+" (bkg) ROC"
 		)
+		ax.set_title(self._name+"\n"+class1name+" (sig) vs "+class2name+" (bkg) ROC",fontsize=16)
 		ax.set_ylim([0.8, 1.0])
 		ax.set_xlim([1e-6,0.3])
 		ax.grid()
@@ -149,14 +164,15 @@ class ModelBase(ABC):
 
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
-	def VizROC(self, ytrue, ypred, class1name = "sig", class2name = "bkg", pos_label=1, fextra="", fpr_threshs = []):
-		fpr, tpr = self.MakeROC(ytrue, ypred, pos_label, fpr_threshs)
+	def VizROC(self, ytrue, ypred, class1name = "sig", class2name = "bkg", pos_label=1, fextra="", fpr_threshs = [], fpr_thresh = -1):
+		fpr, tpr, discr_thresh = self.MakeROC(ytrue, ypred, pos_label, fpr_threshs)
 		self.PlotROCs([fpr.tolist()], [tpr.tolist()], [""],["pink"], fextra, class1name, class2name)
+		return discr_thresh
 	
 	#ytrue and ypred are given in onehot form	
 	#if cat = -1, plot one vs one for all classes
 	#if cat != -1, plot cat vs all
-	def VizMulticlassROC(self, ytrue, ypred, cat = -1, zoom = False, fextra = ""):
+	def VizMulticlassROC(self, ytrue, ypred, cat = -1, zoom = False, fextra = "", fpr_thresh = -1):
 		title=""
 
 		fig = plt.figure()
@@ -176,7 +192,8 @@ class ModelBase(ABC):
 			self.FindDiscThresh(0.01, cat, fpr, tpr, thresh)
 			self.FindDiscThresh(0.005, cat, fpr, tpr, thresh)
 			self.FindDiscThresh(0.001, cat, fpr, tpr, thresh)
-			
+			discr_thresh = self.FindDiscThresh(fpr_thresh, cat, fpr, tpr, thresh)
+			print("discr_thresh",discr_thresh)		
 			#do 1- TPR
 			#tpr = [1 - i for i in tpr]
 			ax.plot(
@@ -244,6 +261,7 @@ class ModelBase(ABC):
 				self.FindDiscThresh(0.001, cat1, fpr_cat1, tpr_cat1, thresh_cat1)
 				self.FindDiscThresh(0.001, cat2, fpr_cat2, tpr_cat2, thresh_cat2)
 					
+				discr_thresh = -1
 				#mindiff = 999
 				#bestIdx = 0
 				#for i, fpr in enumerate(fpr_cat2):
@@ -289,8 +307,8 @@ class ModelBase(ABC):
 		ax.set(
 			xlabel="background-as-signal mistag rate", #FPR
 			ylabel="signal efficiency", #1 - TPR
-			title=title
 		)
+		ax.set_title(title,fontsize=16)
 		plotname = self._path+"/ROC_"+fname
 		if fextra != "":
 			plotname += "_"+fextra
@@ -298,6 +316,7 @@ class ModelBase(ABC):
 		print("Saving ROC plot to",plotname)
 		plt.savefig(plotname,format=self._form)
 		plt.close()
+		return discr_thresh
 
 
 	def TrainModel(self,epochs=1,batch=1000,viz=False,verb=1,savebest=False, earlystop=True):
@@ -322,6 +341,31 @@ class ModelBase(ABC):
 			his = self._model.fit(self._xtrain,self._ytrain,epochs=epochs,verbose=verb,validation_split=0.2,callbacks=callbacks_list,batch_size=batch)
 		else:
 			his = self._model.fit(self._xtrain,self._ytrain,sample_weight=self._wtrain,epochs=epochs,verbose=verb,validation_split=0.2,callbacks=callbacks_list,batch_size=batch)
+		#save model with lowest validation loss
+		if viz:
+			self.VizMetric(his,"loss")
+		#print("cats",self._catnames)
+
+
+	def TrainModelGenerator(self,epochs=1,batch=1000,viz=False,verb=1,savebest=False, earlystop=True):
+		#remove old checkpoints in dir - update this to not use *	
+		files = os.listdir(self._path)
+		if any(".keras" in f for f in files):
+			for file in glob.glob(self._path+"/*.keras"):
+				os.remove(file)
+			#subprocess.call("rm ./"+self._path+"/*.keras")
+		#set checkpoint to save model with lowest validation loss (Caltech)
+		callbacks_list = []
+		if savebest:
+			callback = callbacks.ModelCheckpoint(self._path+"/model_{epoch:03d}epoch_{val_loss:.5f}valloss.keras",monitor="val_loss",save_best_only=True,mode="min",initial_value_threshold=999.)
+			callbacks_list.append(callback) 
+		if earlystop:
+			#do early stopping too
+			earlystop_callback = callbacks.EarlyStopping("val_loss",min_delta=1e-6,mode='min',start_from_epoch=80)
+			callbacks_list.append(earlystop_callback)
+		#80/20 train/val split (of training data)
+		#print("ytrain shape",self._ytrain.shape,np.array(self._ytrain).shape,np.array(self._ytrain)[0].shape,type(self._ytrain),type(np.array(self._xtrain)))
+		his = self._model.fit(self._train_gen,epochs=epochs,verbose=verb,validation_split=0.2,callbacks=callbacks_list,batch_size=batch)
 		#save model with lowest validation loss
 		if viz:
 			self.VizMetric(his,"loss")
@@ -397,11 +441,36 @@ class ModelBase(ABC):
 		if fextra != "":
 			extralab += "_"+fextra
 		self.PlotROCs(fprs,tprs,labels,colors,extralab)
+
+
+	def MakeTestPdDataframe(self, ypred):
+		#add each score in ypred to xtest df as separate columns for plotting later
+		cols = [f"score_{val[1]}" for val in self._test_gen.GetLabels()]
+		chunk_size = 1024  # tune this for memory usage
+		ypred_da = da.from_array(ypred, chunks=(chunk_size, ypred.shape[1]))
+		scores_ddf = dd.from_dask_array(ypred_da, columns=cols)
+		#get dask dataframe
+		xtest_ddf = self._test_gen.GetDataFrame()
+		#reset row indices
+		xtest_reset = xtest_df.reset_index(drop=True)
+		scores_reset = scores_ddf.reset_index(drop=True)
+		#align partitions
+		if self._xtest_ddf.npartitions != scores_ddf.npartitions:
+			scores_ddf = scores_ddf.repartition(npartitions=xtest_ddf.npartitions)
+		self._xtest_df = pd.concat([xtest_reset, scores_reset], axis=1,ignore_index=False) 
 	
-	def TestModel(self,batch_size=1,verb=1,validate_model = False, fpr_threshs = []):
+	def TestModelGenerator(self,batch_size=1,verb=1,validate_model = False, fpr_threshs = []):
 		self.LoadBestModel()
 		#save optimal model as .keras for frugally-deep
-		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
+		ypred = self._model.predict(self._test_gen,batch_size=batch_size,verbose=verb)
+		#get truth labels of testset
+		ytest = self._test_gen.GetTrueLabels()	
+	
+		self.MakeTestPdDataframe(ypred)
+
+		discr_threshs = []
+		fpr_thresh = 0.001
+	
 		#do preprocessing for energy-separated roc curves
 		energy_ranges = []
 		nclasses = len(ypred[0])
@@ -415,21 +484,66 @@ class ModelBase(ABC):
 			if labels == [4,6]:
 				#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
 				pos_label = 0
-			self.VizROC(self._ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs)
+			discr_thresh = self.VizROC(ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
+			discr_threshs.append(discr_thresh)
+		else:  #multiclass
+			#plot physics bkg vs other bkgs
+			thresh_class1 = self.VizMulticlassROC(ytest, ypred,1,zoom=True, fpr_thresh = fpr_thresh)
+			#plot BH vs other bkgs
+			thresh_class2 = self.VizMulticlassROC(ytest, ypred,2,zoom=True, fpr_thresh = fpr_thresh)
+			#plot spike vs other bkgs
+			thresh_class3 = self.VizMulticlassROC(ytest, ypred,3,zoom=True, fpr_thresh = fpr_thresh)
+			discr_threshs = [thresh_class1, thresh_class2, thresh_class3]
+			#plot one-v-one for each class
+			self.VizMulticlassROC(ytest, ypred,-1)
+			self.VizMulticlassROC(ytest, ypred,-1,zoom=True)
+		return discr_threshs
+	
+	def TestModel(self,batch_size=1,verb=1,validate_model = False, fpr_threshs = []):
+		self.LoadBestModel()
+		#save optimal model as .keras for frugally-deep
+		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
+		#add each score in ypred to xtest df as separate columns
+		cols = [f"score_{val[1]}" for val in enumerate(np.unique(self._lb.inverse_transform(self._ytest)))]
+		scores_df = pd.DataFrame(ypred, columns=cols)
+		#reset row indices
+		self._xtest_df = self._xtest_df.reset_index(drop=True)
+		scores_df = scores_df.reset_index(drop=True)
+		self._xtest_df = pd.concat([self._xtest_df, scores_df], axis=1,ignore_index=False) 
+
+		discr_threshs = []
+		fpr_thresh = 0.001
+	
+		#do preprocessing for energy-separated roc curves
+		energy_ranges = []
+		nclasses = len(ypred[0])
+		if nclasses == 2:
+			labels = []
+			classes = []
+			for key in self._catnames.keys():
+				labels.append(key)
+				classes.append(self._catnames[key])
+			pos_label = 1
+			if labels == [4,6]:
+				#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
+				pos_label = 0
+			discr_thresh = self.VizROC(self._ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
+			discr_threshs.append(discr_thresh)
 			#do energy breakdown
 			if(self._xtest_energy is not None):
 				self.TestModel_EnergySplit(self._xtest,self._xtest_energy,self._ytest_energy,ypred,pos_label,batch_size=batch_size,verb=verb)
 		else:  #multiclass
 			#plot physics bkg vs other bkgs
-			self.VizMulticlassROC(self._ytest, ypred,1,zoom=True)
+			thresh_class1 = self.VizMulticlassROC(self._ytest, ypred,1,zoom=True, fpr_thresh = fpr_thresh)
 			#plot BH vs other bkgs
-			self.VizMulticlassROC(self._ytest, ypred,2,zoom=True)
+			thresh_class2 = self.VizMulticlassROC(self._ytest, ypred,2,zoom=True, fpr_thresh = fpr_thresh)
 			#plot spike vs other bkgs
-			self.VizMulticlassROC(self._ytest, ypred,3,zoom=True)
+			thresh_class3 = self.VizMulticlassROC(self._ytest, ypred,3,zoom=True, fpr_thresh = fpr_thresh)
+			discr_threshs = [thresh_class1, thresh_class2, thresh_class3]
 			#plot one-v-one for each class
 			self.VizMulticlassROC(self._ytest, ypred,-1)
 			self.VizMulticlassROC(self._ytest, ypred,-1,zoom=True)
-
+		return discr_threshs
 	#external_class is the class you want to use ncat is the cat # you want to replace
 	def ReplaceClass(self, external_class, ncat, cols, catnames, nsamp = -1, fextra=""):
 		df2 = pd.DataFrame(data=self._scaler.inverse_transform(self._xtest),columns=cols) #remake dataframe with column names
@@ -572,8 +686,11 @@ class ModelBase(ABC):
 			return
 	def VizLoss(self, history, fname):
 		plt.figure()
+		ax = plt.gca()
 		plt.plot(history.history['val_loss'], label="val loss")
 		plt.plot(history.history['loss'],label="train loss")
-		plt.title("Loss")
+		ax.set_title("Loss during training",fontsize=16)
+		ax.set_xlabel("Epoch",fontsize=14)
+		ax.set_ylabel("Loss",fontsize=14)
 		plt.legend()
 		plt.savefig("loss/"+fname)

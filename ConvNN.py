@@ -1,12 +1,14 @@
 from ModelBase import ModelBase
 from keras import layers, metrics, Input, Model, activations
 import matplotlib.pyplot as plt
+from matplotlib import colors
 from matplotlib.patches import Patch
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import normalize, MinMaxScaler, LabelBinarizer
 import os
 import subprocess
 import numpy as np
+import mplhep as hep
 
 class ConvNeuralNetwork(ModelBase):
 	def __init__(self):
@@ -14,6 +16,8 @@ class ConvNeuralNetwork(ModelBase):
 		self._nNodes = None
 		self._xtrain = None
 		self._ytrain = None
+		self._xtrain_df = None
+		self._ytrain_df = None
 		#plot format
 		self._form = "pdf"
 		self._path = "results/"
@@ -24,106 +28,143 @@ class ConvNeuralNetwork(ModelBase):
 		self._catcolors = {}
 		self._lb = None
 		self._inputHists = None
+		self._tag = ""
 		super().__init__()
 
-	def __init__(self, data, nNodes, name = "model"):
+	def __init__(self, data, nNodes, name = "model", tag = ""):
 		self._bestModel = None
+		self._wtrain = None
 		self._lowestValLoss = 999
 		self._form = "pdf"
 		self._name = name
+		if tag != "":
+			self._name += "_"+tag
 		self._path = "results/"+self._name
 		self._catnames = {} 
 		self._catcolors = {}
 		self._inputHists = []
+		self._tag = tag
 		if not os.path.exists(self._path):
 			os.mkdir(self._path)
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
 		self._nNodes = nNodes
 	
-		x, y = self.ProcessData(data)
-	
+		y = self.StripLabels(data)
 		#print("norm",x[:5],max(x[:,0]))
 		#80/20 train/test split
 		rand = 43 #change to random number to randomize
-		self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
+		self._xtrain_df, self._xtest_df, self._ytrain, self._ytest = train_test_split(data,y,test_size=0.2,random_state=rand)
+		#rejoin labels for dfs
+		ylabels = self._lb.inverse_transform(self._ytrain)
+		self._xtrain_df["label"] = ylabels
+		ylabels = self._lb.inverse_transform(self._ytest)
+		self._xtest_df["label"] = ylabels
+		
+		#make grids for CNN inputs
+		self._xtrain = self.MakeSamples(self._xtrain_df)
+		self._xtest = self.MakeSamples(self._xtest_df)
+
+		print("xtrain shape",self._xtrain.shape)
+
 		self._ytrain = np.asarray([ np.asarray(i) for i in self._ytrain])
 		#print(self._xtrain.shape[0],"training samples",self._ytrain.shape,type(self._ytrain),type(self._ytrain[0]),self._ytrain[0])
 		#shape of input data
 		super().__init__()
 
-	def ProcessData(self, data):
+	def StripLabels(self, indata, labelcol = "label"):
 		self._lb = LabelBinarizer()
-		labels = data["label"]
+		labels = indata[labelcol]
 		y = self._lb.fit_transform(labels)
-		
+		indata.drop(labelcol,axis=1,inplace=True)
+		return y
+
+	def normalize_grids(self, grids):
+		"""Normalize each grid individually. Modify as needed."""
+		# Sum of energies per grid
+		sums = grids.sum(axis=(1,2,3), keepdims=True)
+		sums[sums == 0] = 1.0
+		return grids / sums
+
+	def MakeSamples(self, indata):
+		# Preserve SC-level index
+		sc_df = indata.reset_index(drop=True)
+		sc_df["sc_id"] = np.arange(len(sc_df))
+
+		# Explode to flat rechit rows
+		col_eta = "SC_rh_iEta"
+		col_phi = "SC_rh_iPhi"
+		col_e = "SC_rh_Energy"
+		if self._tag != "":
+			col_eta = col_eta+"_"+self._tag
+			col_phi = col_phi+"_"+self._tag
+			col_e = col_e+"_"+self._tag
+		exploded = sc_df.explode([col_eta, col_phi, col_e])
+
+		# Extract numpy arrays
+		sc_id  = exploded["sc_id"].to_numpy()
+		iEta   = exploded[col_eta].to_numpy().astype(int)
+		iPhi   = exploded[col_phi].to_numpy().astype(int)
+		energy = exploded[col_e].to_numpy()
+
+		# Convert local positions -3..3 → 0..6
+		x = iEta + 3
+		y = iPhi + 3
+
+		# Allocate grids (N, 7, 7, 1)
+		N = len(sc_df)
+		grids = np.zeros((N, 7, 7, 1), dtype=np.float32)
+
+		# Vectorized scatter
+		grids[sc_id, x, y, 0] = energy
+
+		#normalize grids
+		grids = self.normalize_grids(grids)
+
+		# Extract labels → (N, 1)
+		return grids
+
+		'''		
 		#extract inputs and labels, remove unnecessary columns
 		#drop event + subcl cols
-		dropcols = ["sample","event","object","label"]
-		x = data.drop(dropcols,axis=1)
-		if "subcl" in x.columns:
-			x = data.drop(["subcl"],axis=1)
+		#dropcols = ["sample","event","object","label"]
+		#x = data.drop(dropcols,axis=1)
+		#if "subcl" in x.columns:
+		#	x = data.drop(["subcl"],axis=1)
 		
+
+		#update processing for new CSV format (CSVs from root files)
+		ngrid = 7
+		half = ngrid // 2
+	
+		#assign sample index
+		data["obj_idx"] = data.groupby(["event_idx","sc_idx"]).ngroup()
+		nsamples = data["obj_idx"].nunique()
+
+		#create input grid object
+		X = np.zeros((nsamples, ngrid, ngrid, 1), dtype=np.float32)
 		
-		#drop not grid features
-		gridcols = x.columns.str.contains("grid")
-		grid = x.loc[:,gridcols]
-		#print("grid cols",grid.columns,len(gridcols))
-		ngrid = len(grid.columns) #ngrid = 7x7
-		ngrid = np.sqrt(ngrid) #ngrid = 7
-		ngrid = int((ngrid-1)/2) #ngrid = 3
+		#get grid indices
+		ix = (data["SC_rh_iEta_"+self._tag].values + half).astype(int)
+		iy = (data["SC_rh_iPhi_"+self._tag].values + half).astype(int)
+		si = data["obj_idx"].values
 
-	
-		#do normalizations
-		if "norm" in self._name:
-			#get channel to normalize
-			testname = self._name
-			norm_cols = []
-			for i in range(-ngrid,ngrid+1):
-				for j in range(-ngrid,ngrid+1):
-					norm_cols.append("CNNgrid_cell"+str(i)+"_"+str(j))
-			sumcol = x[norm_cols].sum(axis=1)
-			for i in range(-ngrid,ngrid+1):
-				for j in range(-ngrid,ngrid+1):
-					x["CNNgrid_cell"+str(i)+"_"+str(j)] = x["CNNgrid_cell"+str(i)+"_"+str(j)].div(sumcol)
-	
+		#get channel value: energy * weight
+		e = (data["SC_rh_Energy_"+self._tag] * data["SC_rh_Weight_"+self._tag]).values
 
-		list0 = []	
-		##input to train_test_split is numpy array of samples, each sample is (7 x 7 x nch)	
-		for i in range(-ngrid,ngrid+1):
-			cols_i = x.columns.str.contains("CNNgrid_cell"+str(i))
-			grid_i = x.loc[:,gridcols]
-			list_i = [] #list of cols to zip
-			for j in range(-ngrid,ngrid+1):
-				listcols = []
-				#over all training samples
-				#print("col_E",len(col_E),"multidx",multidx)
-				col = x["CNNgrid_cell"+str(i)+"_"+str(j)]
-				#listcols.append(col_E)
-				#col = list(zip(*listcols))
-				#print("col",col,"listcols",listcols)	
-				#print("i",i,"j",j,"total col",col[0])
-				list_i.append(np.array(col))
-			list_i = np.array(list_i)
-			#print("list_"+str(i),list_i.shape)
-			list_i = np.array(list(zip(*[l for l in list_i])))
-			#print("zip list_"+str(i),list_i.shape)
-			list0.append(list_i)
-		x = np.array(list(zip(*[i for i in list0]))) #should be size (nsamples, ngrid, ngrid, nchannels)
-					
-		self._features = []#x.columns
-		#print("unnorm",x[0:5],max(x[:,0]))
-	
-		##normalize data - normalize each channel separately
-		#print(channels[idx],x[:,:,:,idx].flatten(),x[:,:,:,idx].flatten().shape)
-		scaler = MinMaxScaler()
-		xflat = [[i] for i in x[:,:,:].flatten()]	
-		scaler.fit(xflat)
-		xnorm = scaler.transform(xflat).flatten()
-		xnorm = xnorm.reshape((-1,x.shape[1],x.shape[2],1))
-		#print(x.shape,xnorm.shape)
-		x = xnorm
-		return x, y	
+		#safe insertion (handles duplicate rhs)
+		np.add.at(X[:,:,:,0], (si, ix, iy), e)
 
+		#labels	
+		self._lb = LabelBinarizer()
+		labels = data.groupby("obj_idx")["label"].first().values
+		y = self._lb.fit_transform(labels)
+
+		#normalization by sum of grid energy
+		grids = X[:,:,:,0] #(N, 7, 7)
+		totals = grids.sum(axis=(1,2), keepdims = True) + 1e-8
+		X[:,:,:,0] = grids / totals
+		'''
+		return X, y	
 
 
 	#convolutional network
@@ -160,36 +201,129 @@ class ConvNeuralNetwork(ModelBase):
 		)
 
 
+	def TestModel(self,viz=True,batch_size=1,verb=1,validate_model = False, fpr_threshs = []):
+		discr_threshs = super().TestModel(batch_size, verb, validate_model, fpr_threshs)
+		#for testing with small dataset
+		print("discr threshs",discr_threshs)
+		if(viz):
+			self.MakePlots(discr_threshs)
+
+	def MakePlots(self, discr_threshs = []):
+		#predicted test samples
+		##take self._xtest_df and assign labels in a new column (labels) based on discriminator scores
+		possible_labels = np.unique(self._lb.inverse_transform(self._ytest))
+		score_cols = [f"score_{lab}" for lab in possible_labels]
+		score_matrix = self._xtest_df[score_cols].to_numpy()
+		mask = score_matrix > discr_threshs   # shape (nsamples, nclasses)
+		# If no score passes threshold → return -1, assigns label to first class that passes discr_thresh
+		pred_labels = np.where(mask.any(axis=1),
+		                     possible_labels[mask.argmax(axis=1)],
+		                     -1)
+
+
+		self._xtest_df["pred_label"] = pred_labels
+		pred_labels = self._lb.transform(pred_labels)
+		self.VizSamples(self._xtest, pred_labels,"Test Sample Predictions")
+		self.VizSamples(self._xtest, self._ytest,"Test Sample Truth")
+		
+		true_bh = self._xtrain_df[self._xtrain_df["label"] == 2]
+		self.VizTimeVsEta(true_bh,"Training Sample True BH")
+		pred_bh = self._xtest_df[self._xtest_df["pred_label"] == 2]
+		self.VizTimeVsEta(pred_bh,"Test Sample Predicted BH")
+		no_pred_bh = self._xtest_df[self._xtest_df["pred_label"] != 2]
+		self.VizTimeVsEta(no_pred_bh,"Test Sample No Predicted BH")
+
+
+		true_spike = self._xtest_df[self._xtest_df["label"] == 3]
+		self.VizTimeVsEta(true_spike,"Test Sample True Spikes")
+		pred_spike = self._xtest_df[self._xtest_df["pred_label"] == 3]
+		self.VizTimeVsEta(pred_spike,"Test Sample Predicted Spikes")
+		no_pred_spike = self._xtest_df[self._xtest_df["pred_label"] == 3]
+		self.VizTimeVsEta(no_pred_spike,"Test Sample No Predicted Spikes")
+
+		true_physbkg = self._xtest_df[self._xtest_df["label"] == 1]
+		self.VizTimeVsEta(true_physbkg,"Test Sample True Physics Bkg")
+		pred_physbkg = self._xtest_df[self._xtest_df["pred_label"] == 1]
+		self.VizTimeVsEta(pred_physbkg,"Test Sample Predicted Physics Bkg")
+		no_pred_physbkg = self._xtest_df[self._xtest_df["pred_label"] == 1]
+		self.VizTimeVsEta(no_pred_physbkg,"Test Sample No Predicted Spikes")
+
+	def VizInputs(self):
+		self.VizSamples(self._xtrain, self._ytrain, "Training Samples")
+
+
+	#can give self._xtrain_df or test version
+	def VizTimeVsEta(self, data, extra_title):
+		eta = data["SC_EtaCenter"]
+		time = data["SC_seedTime"]
+
+		plt.figure()
+		ax = plt.gca()
+		counts, xedges, yedges, im = plt.hist2d(time, eta, cmap='viridis',bins=50, range=[[-20,1],[-1.5,1.5]])
+		cbar = plt.colorbar(im, ax=ax)
+		#cbar.ax.tick_params(labelsize=10)
+		cbar.set_label('a.u.')
+		plt.xlabel("SC seed time [ns]")
+		plt.ylabel("SC eta")
+		hep.cms.label(llabel="Preliminary",com="13")
+		plotname = self._path+"/"+"EtaVsTime"
+		if(extra_title != ""):
+			extra_title = extra_title.replace(" ","_")
+			plotname += "_"+extra_title
+		form = "png"
+		plotname = plotname+"."+form
+		print("Saving time vs eta distribution to",plotname)
+		plt.savefig(plotname,format=form,dpi=500)
+		plt.close()
 
 	#set to plot 1 entry (ie 1 grid) at a time
-	def VizInputs(self):
-		labels = self._lb.classes_
-		all_labels = self._lb.inverse_transform(self._ytrain)
-		ngrid = self._xtrain.shape[1]
-		hists2D = [np.zeros((ngrid,ngrid)) for l in labels] #hist needs x, y data
-		for j, x in enumerate(self._xtrain):
-			lidx = np.flatnonzero(self._lb.classes_ == all_labels[j])[0]
-			arr = x[:,:,0] #take first channel (should only be 1)
-			hists2D[lidx] = np.sum([hists2D[lidx], arr],axis=0)
-		for i, l in enumerate(labels):
-			#skip "mult" channels
-			#normalize histogram
-			norm = sum(hists2D[i].flatten())
-			hists2D[i] = hists2D[i]/norm
-			#put eta/phi on right axes
-			hists2D[i] = hists2D[i].transpose()
-			plotname = self._path+"/"+"CNNInputGrid_Label"+str(l)+"."+self._form
-			if os.path.exists(self._path+"/CNNInput_label"+str(l)+"_"+self._name+"."+self._form):
-				continue
-			plt.title("Label: "+self._catnames[l])
-			plt.xlabel("local ieta")
-			plt.ylabel("local iphi")
-			plt.imshow(hists2D[i],extent=(-0.5 - (ngrid-1)/2, 0.5 + (ngrid-1)/2, -0.5 - (ngrid-1)/2, 0.5 + (ngrid-1)/2),origin="lower")
-			plt.colorbar()
-			print("Saving",plotname)
-			plt.savefig(plotname,format=self._form)
-			plt.close()
+	def VizSamples(self, indata, inlabels, extra_title = ""):
+		labels = self._lb.inverse_transform(inlabels)
+		labels_set = np.unique(labels)
+		nlabels = len(labels_set)
+		
+		ncols = 2	
+		nrows = int(np.ceil(nlabels / ncols))
 
+		plt.figure(figsize = (5*ncols, 5*nrows-1))
+		labels_dict  = {  1 : "physics bkg", 2 : "beam halo", 3 : "spikes"}
+
+		for i, label in enumerate(labels_set):
+			ax = plt.subplot(nrows, ncols, i+1)
+			mask = (labels == label)
+			cls_grid = indata[mask]
+			if cls_grid.size == 0:
+				continue
+			avg_grid = cls_grid.mean(axis=0).squeeze()
+			avg_grid /= avg_grid.sum()
+			im = ax.imshow(avg_grid.T, origin='lower', cmap='viridis', interpolation='none', norm=colors.SymLogNorm(linthresh=1e-5, linscale=1,vmin=1e-4))
+			ax.set_title(f"Average Grid ("+labels_dict[label]+")", fontsize=14)
+			ax.set_xlabel("local iEta",fontsize=12)
+			ax.set_ylabel("local iPhi",fontsize=12)
+			ax.tick_params(axis="both",labelsize=10)
+			# Annotate nonzero cells for clarity
+			for r in range(7):
+				for c in range(7):
+					if avg_grid[r, c] != 0:
+						ax.text(c, r, f"{avg_grid[r,c]:.2f}",
+							ha="center", va="center", color="white", fontsize=7)
+
+
+			cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+			cbar.ax.tick_params(labelsize=10)
+			cbar.set_label('a.u.', fontsize=12)
+		plt.subplots_adjust(hspace=0.1)
+		plt.suptitle(self._name+"\n"+extra_title+" CNN Grids",fontsize=16)
+		form = "png"
+		plotname = self._path+"/"+"CNNInputGrids"
+		if(extra_title != ""):
+			extra_title = extra_title.replace(" ","_")
+			plotname += "_"+extra_title
+		plotname = plotname+"."+form
+		print("Saving CNN grids to",plotname)
+		plt.savefig(plotname,format=form,dpi=500)
+		plt.close()
+		#plt.show()
 
 	def VizModelWeights(self):
 		#visualize filters (weights)

@@ -7,66 +7,155 @@ from concurrent.futures import ThreadPoolExecutor
 from abc import ABC, abstractmethod
 import pyarrow as pa #for memory management
 import pyarrow.parquet as pq
+import pyarrow.dataset as ds
+import dask.dataframe as dd
 import os
 import time
 
 class FileReader:
-	def __init__(self, printStats = True):
+	def __init__(self, obj, printStats = True):
 		self._data = pd.DataFrame([])
 		self._printstats = printStats
-		self._rechits = False
 		self._tag = ""
-		self._output_dir = "parquet_output"
-		os.makedirs(self._output_dir,exist_ok=True)
+		self._output_parquet_data = "parquet_output"
+		os.makedirs(self._output_parquet_data,exist_ok=True)
+		self._obj = obj
+
+	def SetParquetOutputDir(self, pdir):
+		if not os.path.exists(pdir):
+			os.mkdir(pdir)
+		self._output_parquet_data = pdir
+
+	def SetPrintStats(self, p):
+		self._printstats = p
 
 	@abstractmethod
 	def AddFile(self, file):
 		pass
-
-	def CleanData(self):
-		print("Cleaning data",len(self._data),"subclusters initially")
+	'''
+	def CleanData(self, indata = None):
+		if(indata is None):
+			indata = self._data
+		if(self._printstats):
+			print("Cleaning data",len(indata),"subclusters initially")
 
 		#remove any "unmatched" labels
-		self._data = self._data[self._data['label'] != -1]
+		indata = indata[indata['label'] != -1]
 		if(self._printstats):
 		    print("after unmatched removal")
-		    self.PrintStats()
+		    self.PrintStats(indata)
 
-		self._data = self._data[self._data['label'] != -999]
+		indata = indata[indata['label'] != -999]
 		if(self._printstats):
 		    print("after invalid reconstruction removal")
-		    self.PrintStats()
+		    self.PrintStats(indata)
 		
 		#put extra cuts on subcluster energy, etc.
-		if "Energy" in self._data.columns:
-			self.ApplyColCut("Energy",30) 
+		if "Energy" in indata.columns:
+			self.ApplyColCut("Energy",30, indata) 
 		
 		#drop nan rows
-		for col in self._data.columns:
-		    if(self._data[col].isna().any()):
+		for col in indata.columns:
+		    if(indata[col].isna().any()):
 		        print("column",col,"has nans in rows")
-		self._data.dropna(how="any")
+		indata.dropna(how="any")
 		if(self._printstats):
 		    print('after dropna')
-		    self.PrintStats()
+		    self.PrintStats(indata)
+	'''
 
-	def PrintStats(self):
-		phys = len(self._data[self._data["label"] == 1])
-		BH = len(self._data[self._data["label"] == 2])
-		spike = len(self._data[self._data["label"] == 3])
+	def CleanDataDask(self, indata=None):
+		"""
+		Cleans the input DataFrame or Dask DataFrame:
+		- removes invalid/unmatched labels
+		- applies column cuts (e.g., Energy)
+		- drops rows with NaNs
+		Returns a cleaned Dask DataFrame (lazy until compute()).
+		"""
+	
+		#  Use provided input or default dataset
+		if indata is None:
+		         indata = self._data  # could be pandas or Dask DataFrame
+	
+		#  Print initial stats (compute row count lazily)
+		if self._printstats:
+			nrows = indata.shape[0].compute()  # works for Dask
+			print("Cleaning data", nrows, self._obj+"s","initially")
+			self.PrintStatsDask(indata)
+				
+		#  Remove invalid labels (lazy, memory-efficient)
+		indata = indata.query("label != -1 and label != -999")
+		if self._printstats:
+		       print("After unmatched/invalid label removal:", indata.shape[0].compute())
+		       self.PrintStatsDask(indata)
+
+		#  Apply column cuts (e.g., Energy)
+		if "Energy" in indata.columns:
+			print("Applying energy cut")
+			# Ensure ApplyColCut works with Dask: avoid .values
+			indata = self.ApplyColCut("Energy", 30, indata)
+			if self._prinstats:
+				print("after energy cut > 30")
+				self.PrintStatsDask(indata)
+	
+		#  Drop rows with any NaNs
+		# Lazy operation; assign back
+		indata = indata.dropna(how="any")
+		# check for NaNs per column (compute only scalars) - takes too long
+		#for col in indata.columns:
+		#	has_nan = indata[col].isna().any().compute()  # lazy scalar
+		#	if has_nan:
+		#		print("Warning: column", col, "still has NaNs")
+	
+		if self._printstats:
+			print("After dropna:", len(indata))
+			self.PrintStatsDask(indata)
+	
+		return indata
+
+	def PrintStatsDask(self, data = None):
+		if data is None:
+			data = self._data
+		phys = (data["label"] == 1).sum().compute()
+		BH = (data["label"] == 2).sum().compute()
+		spike = (data["label"] == 3).sum().compute()
+		tot = phys + BH + spike
+		if(BH > 0):
+		        print(" ",tot, (self._obj+"s, phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
+		isobkg = (data["label"] == 4).sum().compute()
+		nonisobkg = (data["label"] == 6).sum().compute()
+		tot = len(data)
+		if(isobkg > 0):
+			print(" ",tot, (self._obj+"s, isobkg: "+str(isobkg)+" {:.2f}%, nonisobkg: "+str(nonisobkg)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
+
+	'''
+	def PrintStats(self, data = None):
+		if data is None:
+			data = self._data
+		phys = len(data[data["label"] == 1])
+		BH = len(data[data["label"] == 2])
+		spike = len(data[data["label"] == 3])
 		tot = phys + BH + spike
 		if(BH > 0):
 		        print(" ",tot, ("subclusters, phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
-		isobkg = len(self._data[self._data["label"] == 4])
-		nonisobkg = len(self._data[self._data["label"] == 6])
-		tot = len(self._data)
+		isobkg = len(data[data["label"] == 4])
+		nonisobkg = len(data[data["label"] == 6])
+		tot = len(data)
 		if(isobkg > 0):
 			print(" ",tot, ("subclusters, isobkg: "+str(isobkg)+" {:.2f}%, nonisobkg: "+str(nonisobkg)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
-    
+   	''' 
 	#keep rows with values in col > val
-	def ApplyColCut(self, col, val):
-		self._data = self._data[self._data[col] > val]
+	def ApplyColCut(self, col, val, indata = None):
+		if indata is None:
+			indata = self._data
+		indata = indata[indata[col] > val]
 	
+	#keep rows with values in col > val
+	def ApplyColCutDask(self, col, val, indata = None):
+		if indata is None:
+			indata = self._data
+		indatafiltered = indata[indata[col] > val]
+		return indatafiltered
 	
 	def SelectClass(self,nclass,samp):
 		mask = (self._data["label"] == nclass) | (self._data["sample"] != samp)
@@ -144,9 +233,12 @@ class FileReader:
 	
 	#creates new columns that are ratios of given cols and denom column
 	def DivideCols(self, cols, denom):
+		denomname = denom
+		if self._obj not in denom:
+			denom = self._obj+"_"+denom
 		newnames = []
 		for col in cols:
-			colname = col+'Ov'+denom
+			colname = col+'Ov'+denomname
 			newnames.append(colname)
 			self._data[colname] = self._data[col] / self._data[denom]
 			#print("col",self._data[self._data.isna().any(axis=1)][colname])
@@ -191,69 +283,64 @@ class FileReader:
 
 
 class TTreeReader(FileReader):
-	def __init__(self, tag, printStats = False):
-		super().__init__(printStats)
+	def __init__(self, obj, tag, printStats = False):
+		super().__init__(obj, printStats)
 		self._tag = tag
+		self._output_parquet_data = self._output_parquet_data+f"/{self._tag}_{self._obj}s"
  
-	def ProcessCNNBranches(self, file, sample, step_size=10000):
+	def ProcessCNNBranches(self, file, sample, step_size=10000, recreate_files = False):
 		branches = [
 			f"SC_rh_iEta_{self._tag}",
 			f"SC_rh_iPhi_{self._tag}",
 			f"SC_rh_Energy_{self._tag}",
-			f"SC_rh_Weight_{self._tag}",
 			f"SC_trueLabel_{self._tag}",
-			f"SC_EtaCenter_{self._tag}"
+			f"SC_EtaCenter_{self._tag}",
+			f"SC_seedTime_CMS"
 		]
-		print("Branches",branches)	
+		print("Branches",branches)
 		data_accum = []
 		nchunk = 0
 		total_time = 0
 
+		print("Processing sample",sample,"from file",file,"with step size",step_size)
 		nentries = uproot.open(file)["tree"].num_entries
 		if(isinstance(step_size,int)):
 			print("File",file,"has",nentries,"entries and therefore",(nentries + step_size - 1) // step_size,"chunks with step size",step_size)
 		else:
 			print("Chunking file",file,"in",step_size,"chunks")
+		
+
 		for chunk in uproot.iterate(file + ":tree", branches, step_size=step_size, library="ak",
 				num_workers = 8, #multithreading options
 				decompression_executor=ThreadPoolExecutor(max_workers=8),
 				interpretation_executor=ThreadPoolExecutor(max_workers=8)
 			):
+			parquet_fname = f"chunk_{nchunk:05d}_sample_{sample}_type_{self._tag}.parquet"
+			if(os.path.exists( os.path.join(self._output_parquet_data, parquet_fname) )) and not recreate_files:
+				#print(os.path.join(self._output_parquet_dataset, parquet_fname),"exists. Please provide a unique sample name for",file)
+				#print(os.path.join(self._output_parquet_dataset, parquet_fname),"exists. Skipping.",end="\r",flush=True)
+				return
 			t1 = time.perf_counter()
-			if nchunk > 300 and "EGamma" in sample:
+			if nchunk > 800 and "EGamma" in sample:
 				break
 			print(f"Processing chunk #{nchunk}",end="\r",flush=True)
 			
 			sc_counts = ak.num(chunk[f"SC_trueLabel_{self._tag}"])
-			#flatten sc level branches
-			sc_eta = ak.flatten(chunk[f"SC_EtaCenter_{self._tag}"],axis=1)
-			sc_label = ak.flatten(chunk[f"SC_trueLabel_{self._tag}"],axis=1)
-			#flatten rh level branches
-			rechit_branches = {
-				f"SC_rh_iEta_{self._tag}": chunk[f"SC_rh_iEta_{self._tag}"],
-				f"SC_rh_iPhi_{self._tag}": chunk[f"SC_rh_iPhi_{self._tag}"],
-				f"SC_rh_Energy_{self._tag}": chunk[f"SC_rh_Energy_{self._tag}"],
-				f"SC_rh_Weight_{self._tag}": chunk[f"SC_rh_Weight_{self._tag}"]
-			}
+			#write to parquet table directly
+			table = pa.table({
+				"event_idx": np.repeat(np.arange(len(chunk)), sc_counts),
+				"sc_idx": ak.to_numpy(ak.flatten(ak.local_index(chunk[f"SC_trueLabel_{self._tag}"]))),
+				f"SC_EtaCenter_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"SC_EtaCenter_{self._tag}"],axis=1)),
+				f"SC_seedTime_CMS" : ak.to_numpy(ak.flatten(chunk[f"SC_seedTime_CMS"],axis=1)), #ak.to_numpy must be flat arrays
+				f"SC_trueLabel_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"SC_trueLabel_{self._tag}"],axis=1)),
+				f"SC_rh_iEta_{self._tag}" : ak.to_list(ak.flatten(chunk[f"SC_rh_iEta_{self._tag}"], axis=1)), #ak.to_list can be jagged arrays
+				f"SC_rh_iPhi_{self._tag}" : ak.to_list(ak.flatten(chunk[f"SC_rh_iPhi_{self._tag}"], axis=1)),
+				f"SC_rh_Energy_{self._tag}" : ak.to_list(ak.flatten(chunk[f"SC_rh_Energy_{self._tag}"], axis=1)),
+				"sample": pa.array([sample] * sum(sc_counts))
+			})	
 
-			#make index branches
-			event_idx = np.repeat(np.arange(len(chunk)), sc_counts)
-			sc_idx = ak.flatten(ak.local_index(chunk[f"SC_trueLabel_{self._tag}"]))
-
-			data = {
-				"event_idx" : event_idx,
-				"sc_idx" : sc_idx.to_numpy(), 
-				f"SC_EtaCenter_{self._tag}" : sc_eta.to_numpy(),
-				f"SC_trueLabel_{self._tag}" : sc_label.to_numpy(),
-			}
-			for rh in rechit_branches:
-				# flatten outer axis only (keep inner list of rechits per SC)
-				data[rh] = ak.to_list(ak.flatten(chunk[rh], axis=1))
-
-			data["sample"] = sample
-			#convert to arrow table and write to parquet to avoid large RAM usage all at once
-			table = pa.Table.from_pandas(pd.DataFrame(data))
-			pq.write_table(table, os.path.join(self._output_dir, f"chunk_{nchunk:05d}_sample_{sample}.parquet"))
+			#table = pa.Table.from_pandas(pd.DataFrame(data))
+			pq.write_table(table, os.path.join(self._output_parquet_data, parquet_fname))
 
 			#data_accum.append(df)
 			nchunk += 1
@@ -264,28 +351,146 @@ class TTreeReader(FileReader):
 		# Concatenate all chunks into single DataFrame
 		#data_accum.append(self._data)
 		#self._data = pd.concat(data_accum, ignore_index=True)
-		print("Done processing file",file,"took",total_time,"seconds total with",total_time / nchunk,"seconds on average per chunk\n")
+		print("Done processing file",file,"took",total_time,"seconds total with",total_time / nchunk,"seconds on average per chunk\n\n")
 	
 	def AddFileCNN(self, file, sample, step_size=10000):
-		self._rechits = True
 		self.ProcessCNNBranches(file,sample,step_size)
 		
+	def ProcessDNNBranches(self, file, sample, step_size=10000, recreate_files = False):
+		branches = [
+			f"Photon_EtaVar_{self._tag}",
+			f"Photon_PhiVar_{self._tag}",
+			f"Photon_EtaPhiCov_{self._tag}",
+			f"Photon_majorLength_{self._tag}",
+			f"Photon_minorLength_{self._tag}",
+			f"Photon_hcalTowerSumEtConeDR04_{self._tag}",
+			f"Photon_trkSumPtSolidConeDR04_{self._tag}",
+			f"Photon_trkSumPtHollowConeDR04_{self._tag}",
+			f"Photon_hadTowOverEM_{self._tag}",
+			f"Photon_ecalRHSumEtConeDR04_{self._tag}"
+			f"Photon_Pt_{self._tag}",
+			f"Photon_EtaCenter_{self._tag}",
+			f"Photon_trueLabel_{self._tag}"
+			
+		]
+		print("Branches",branches)
+		data_accum = []
+		nchunk = 0
+		total_time = 0
+
+		print("Processing sample",sample,"from file",file,"with step size",step_size)
+		nentries = uproot.open(file)["tree"].num_entries
+		if(isinstance(step_size,int)):
+			print("File",file,"has",nentries,"entries and therefore",(nentries + step_size - 1) // step_size,"chunks with step size",step_size)
+		else:
+			print("Chunking file",file,"in",step_size,"chunks")
+		self._output_parquet_data = self._output_parquet_data+f"/{self._tag}_Photons"
+		
+
+		for chunk in uproot.iterate(file + ":tree", branches, step_size=step_size, library="ak",
+				num_workers = 8, #multithreading options
+				decompression_executor=ThreadPoolExecutor(max_workers=8),
+				interpretation_executor=ThreadPoolExecutor(max_workers=8)
+			):
+			parquet_fname = f"chunk_{nchunk:05d}_sample_{sample}_type_{self._tag}.parquet"
+			if(os.path.exists( os.path.join(self._output_parquet_data, parquet_fname) )) and not recreate_files:
+				#print(os.path.join(self._output_parquet_data, parquet_fname),"exists. Please provide a unique sample name for",file)
+				#print(os.path.join(self._output_parquet_data, parquet_fname),"exists. Skipping.",end="\r",flush=True)
+				return
+			t1 = time.perf_counter()
+			print(f"Processing chunk #{nchunk}",end="\r",flush=True)
+			
+			pho_counts = ak.num(chunk[f"Photon_trueLabel_{self._tag}"])
+			#write to parquet table directly
+			table = pa.table({
+				"event_idx": np.repeat(np.arange(len(chunk)), pho_counts),
+				"pho_idx": ak.to_numpy(ak.flatte(ak.local_index(chunk[f"Photon_trueLabel_{self._tag}"]))),
+				f"Photon_trueLabel_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_trueLabel_{self._tag}"],axis=1)),
+				f"Photon_EtaVar_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_EtaVar_{self._tag}"],axis=1)),
+				f"Photon_PhiVar_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_PhiVar_{self._tag}"],axis=1)),
+				f"Photon_EtaPhiCov_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_EtaPhiCov_{self._tag}"],axis=1)),
+				f"Photon_majorLength_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_majorLength_{self._tag}"],axis=1)),
+				f"Photon_minorLength_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_minorLength_{self._tag}"],axis=1)),
+				f"Photon_hcalTowerSumEtConeDR04_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_hcalTowerSumEtConeDR04_{self._tag}"],axis=1)),
+				f"Photon_trkSumPtSolidConeDR04_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_trkSumPtSolidConeDR04_{self._tag}"],axis=1)),
+				f"Photon_trkSumPtHollowConeDR04_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_trkSumPtHollowConeDR04_{self._tag}"],axis=1)),
+				f"Photon_hadTowOverEM_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_hadTowOverEM_{self._tag}"],axis=1)),
+				f"Photon_ecalRHSumEtConeDR04_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_ecalRHSumEtConeDR04_{self._tag}"],axis=1)),
+				f"Photon_Pt_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_Pt_{self._tag}"],axis=1)),
+				f"Photon_EtaCenter_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_EtaCenter_{self._tag}"],axis=1)),
+				"sample": pa.array([sample] * sum(pho_counts))
+			})	
+
+			pq.write_table(table, os.path.join(self._output_parquet_data, parquet_fname))
+
+			#data_accum.append(df)
+			nchunk += 1
+			t2 = time.perf_counter()
+			total_time += (t2 - t1)
+			print(f"Chunk #{nchunk} processed took",(t2-t1),"seconds",end="\r",flush = True)
+		
+		print("Done processing file",file,"took",total_time,"seconds total with",total_time / nchunk,"seconds on average per chunk\n\n")
+	
+	def AddFileDNN(self, file, sample, step_size=10000):
+		self.ProcessDNNBranches(file,sample,step_size)
 
 	def ReadDataFromParquetTable(self):
-		dataset = pq.ParquetDataset(self._output_dir)
+		dataset = pq.ParquetDataset(self._output_parquet_data)
 		table = dataset.read()
 		return table.to_pandas()	
 
-	def CleanData(self):
-		print("Reading from parquet table")
+
+	def CleanDataDask(self, debug = False):
+		print("Reading from parquet files at",self._output_parquet_data,"into Dask df")
 		t1 = time.perf_counter()
-		self._data = self.ReadDataFromParquetTable()
+		parquet_path = self._output_parquet_data+"/*.parquet"
+		if debug:
+			parquet_path = self._output_parquet_data+"/chunk_00000_sample_*.parquet"
+		
+
+		ddf = dd.read_parquet(parquet_path)
 		t2 = time.perf_counter()
-		print("took",(t2-t1),"to read data from parquet table")
-		self._data.rename(columns={f"SC_trueLabel_{self._tag}" : "label", f"SC_EtaCenter_{self._tag}" : "SC_EtaCenter"}, inplace=True)
+		print("took",(t2-t1),"seconds to read data from parquet table, total # rows",ddf.shape[0].compute())
+		#rename cols
+		new_cols = ["label" if col == f"{self._obj}_trueLabel_{self._tag}" else col for col in ddf.columns]
+		if self._obj == "SC":
+			new_cols = [f"{self._obj}_EtaCenter" if col == f"{self._obj}_EtaCenter_{self._tag}" else col for col in new_cols]
+			new_cols = [f"{self._obj}_seedTime" if col ==  f"{self._obj}_seedTime_CMS" else col for col in new_cols]
+		ddf = ddf.rename(columns=dict(zip(ddf.columns, new_cols))) #inplace not supported for dask dfs!! (lazy execution remember??)
+		self.PrintStatsDask(ddf)	
+
+		print("cleaning dask data")
+		t1 = time.perf_counter()
+		cleaned_ddf = super().CleanDataDask(ddf)
+		t2 = time.perf_counter()
+		print("took",(t2-t1),"seconds to clean dask data")
+		self._data = cleaned_ddf.compute()
+	
+	'''	
+	def CleanData(self):
+		print("Reading from parquet table into Dask df")
+		t1 = time.perf_counter()
+		dataset = ds.dataset(self._output_parquet_data, format="parquet")
+		t2 = time.perf_counter()
+		print("took",(t2-t1),"seconds to read data from parquet table")
+		dfs = []
+		batchidx = 0
+		t1 = time.perf_counter()
+		print("batch cleaning df")
+		for batch in dataset.to_batches(batch_size=1000):
+			print("Cleaning batch #",batchidx,end="\r",flush=True)
+			df = batch.to_pandas()
+			df.rename(columns={f"SC_trueLabel_{self._tag}" : "label", f"SC_EtaCenter_{self._tag}" : "SC_EtaCenter", f"SC_seedTime_CMS" : "SC_seedTime"}, inplace=True)
+			super().CleanData(df)
+			#may need to do all processing in this loop and then read in samples when done
+			dfs.append(df)
+			batchidx += 1
+		self._data = pd.concat(dfs, ignore_index=True)	
+		t2 = time.perf_counter()
+		print("took",(t2-t1),"seconds to clean Dask df batches")
 		print("All chunks processed, total rows:", len(self._data),"beam halo SCs:",len(self._data[self._data["label"] == 2]),"spike SCs:",len(self._data[self._data["label"] == 3]),"physics SCs:",len(self._data[self._data["label"] == 1]))
 		super().CleanData()
-
+	'''
 #add multiple files
 class CSVReader(FileReader):
 	def __init__(self, file, printStats = False):

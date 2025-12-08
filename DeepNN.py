@@ -64,7 +64,8 @@ class DeepNeuralNetwork(ModelBase):
 		labels = labels.reshape(-1,1)
 		self._lb.fit(labels)
 		self._features = [i for i in cols if i not in self._dropcols] 
-		x, y, w, energy = self.ProcessData(data)
+		y = self.StripLabels(data)
+		x, w, energy = self.ProcessData(data)
 		#normalize data
 		self._scaler = MinMaxScaler()
 		self._scaler.fit(x)
@@ -73,9 +74,9 @@ class DeepNeuralNetwork(ModelBase):
 		#80/20 train/test split
 		#if weights have been specified
 		if(len(w) > 0):
-			self._xtrain, self._xtest, self._ytrain, self._ytest, self._wtrain, self._wtest = train_test_split(x,y,w,test_size=0.2,random_state=rand)
+			self._xtrain, self._xtest, self._ytrain, self._ytest, self._wtrain, self._wtest = train_test_split(data,y,w,test_size=0.2,random_state=rand)
 		else:
-			self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
+			self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(data,y,test_size=0.2,random_state=rand)
 		if(len(energy) > 0):
 			self._xtrain_energy, self._xtest_energy, self._ytrain_energy, self._ytest_energy = train_test_split(energy, y, test_size = 0.2, random_state = rand)
 		self._ytrain = np.asarray([ np.asarray(i) for i in self._ytrain])
@@ -87,36 +88,41 @@ class DeepNeuralNetwork(ModelBase):
 	
 		#super().__init__()
 
-	def ProcessData(self, data):
+	def StripLabels(self, indata):
+		labels = indata["label"].to_numpy()
+		labels = labels.reshape(-1,1)
+		#print("labels",labels)
+		y = self._lb.transform(labels)
+		indata.drop("label",axis=1,inplace=True)
+		return y
+		
+
+	def MakeSamples(self, indata):
 		#remove dropcols from cols to pass to hist maker
 		dropcols = [] 
-		print("features",self._features)	
-		print("data",data.shape)	
-		labels = data["label"].to_numpy()
-		labels = labels.reshape(-1,1)
-		print("labels",labels)
-		y = self._lb.transform(labels)
+		#print("features",self._features)	
+		#print("data",data.shape)	
 
 		#print("labels",np.unique(labels),"transformed labels",y,"catnames",self._catnames,"classes",self._lb.categories_)
 	
 		#extract inputs and labels, remove unnecessary columns
 		#drop event + subcl cols
 		energy = np.array([])
-		if "Energy" in data.columns:
+		if "Energy" in indata.columns:
 			dropcols.append("Energy")
-			energy = data["Energy"].to_numpy()
-			data = data.drop("Energy",axis=1)
+			energy = indata["Energy"].to_numpy()
+			indata = indata.drop("Energy",axis=1)
 			
 		weights = np.array([])
-		if("weight" in data.columns):
-			weights = data["weight"].to_numpy()
+		if("weight" in indata.columns):
+			weights = indata["weight"].to_numpy()
 			dropcols.append("weight")
-			data = data.drop("weight",axis=1)
+			indata = indata.drop("weight",axis=1)
 
-		data = data[self._features] 
-		x = data.to_numpy()
-		print("x",x.shape,x[0],"y",y[0],"data[labels]",labels[0])	
-		return x, y, weights, energy
+		indata = indata[self._features] 
+		x = indata.to_numpy()
+		#print("x",x.shape,x[0],"y",y[0],"indata[labels]",labels[0])	
+		return x, weights, energy
 
 
 
@@ -134,13 +140,6 @@ class DeepNeuralNetwork(ModelBase):
 		
 		x = output_layer(x) 
 		self._model = Model(inputs = input_layer, outputs = x, name = self._name)
-		#print("inputs")
-		#[print(i.shape, i.dtype) for i in self._model.inputs]
-		#print("outputs")
-		#[print(o.shape, o.dtype) for o in self._model.outputs]
-		#print("layers")
-		#[print(l.name, l.input_shape, l.dtype) for l in self._model.layers]
-		#print()
 
 	#SGD optimizer
 	#cross-entropy loss (binary or categorical depending on labeling scheme)
@@ -153,7 +152,7 @@ class DeepNeuralNetwork(ModelBase):
 		)
 
 
-	def VizInputs(self):
+	def VizSamples(self):
 		labels = self._lb.categories_[0]
 		all_labels = self._lb.inverse_transform(self._ytrain)
 		inputs = [[[] for l in labels] for f in self._features]
@@ -164,12 +163,8 @@ class DeepNeuralNetwork(ModelBase):
 			plotname = self._path+"/"+self._features[i]+"."+self._form
 			bins = np.linspace(xtrain[:,i].min(), xtrain[:,i].max(), 50)
 			for j, x in enumerate(xtrain):
-				#print(i,x,self._ytrain[j],self._features[i])
 				#this sample needs to be put in j == label[k]
-				#print(self._xtrain[j],self._ytrain[j],all_labels[j])
 				lidx = np.flatnonzero(labels == all_labels[j])[0]
-				#lidx = np.flatnonzero(self._lb.categories_ == all_labels[j])[0]
-				#print(i,self._features[i])
 				inputs[i][lidx].append(x[i])
 				if(i == 0 and self._wtrain is not None):
 					weights[lidx].append(self._wtrain[j])
