@@ -25,6 +25,7 @@ class ModelBase(ABC):
 		self._train_gen = None
 		self._val_gen = None
 		self._test_gen = None
+		self._best_model = None
 		super().__init__()
 	
 	@abstractmethod
@@ -372,6 +373,26 @@ class ModelBase(ABC):
 		#print("cats",self._catnames)
 
 
+	def GetBestModel(self):
+		if self._best_model == None:
+			if not os.path.exists(self._path):
+				print("Error: network at",self._path,"does not exist. Select another network or train this one.")
+				return
+			#get best model
+			files = {}
+			for root, dirs, f in os.walk(self._path):
+				for name in f:
+					if ".keras" not in name:
+						continue
+					valloss = name[name.rfind("_")+1:name.find("valloss")]
+					files[valloss] = root+"/"+name
+			if(len(files) < 1):
+				print("No models found.")
+				return
+			keys = list(files.keys())
+			self._best_model = files[min(keys)]
+		return self._best_model
+
 	def LoadBestModel(self):
 		if not os.path.exists(self._path):
 			print("Error: network at",self._path,"does not exist. Select another network or train this one.")
@@ -390,6 +411,7 @@ class ModelBase(ABC):
 		keys = list(files.keys())
 		
 		#load best model
+		self._best_model = files[min(keys)]
 		print("Loading model",files[min(keys)])
 		self._model.load_weights(files[min(keys)])	
 
