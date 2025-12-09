@@ -17,7 +17,7 @@ def runCNN(args):
 	reader.AddFileCNN("root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_superclusters_defaultv9p1_MET_R17_AL1NpSC_nolumimask_v31_MET_AOD_Run2017B-09Aug2019_UL2017_rsb-v1.root","METPD17_RunB")
 	reader.AddFileCNN("root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_superclusters_defaultv9p1_MET_R17_AL1NpSC_nolumimask_v31_MET_AOD_Run2017D-09Aug2019_UL2017_rsb-v1.root","METPD17_RunD")
 
-	reader.CleanDataDask()
+	reader.CleanDataDask(debug=args.debug)
 	reader.SelectClass(1,"EGamma"); #choose for a certain class (first arg) to only come from sample (second arg)
 	#reader.SelectClass(1,"DoubleEG"); #choose for a certain class (first arg) to only come from sample (second arg)
 
@@ -67,6 +67,7 @@ def runCNN(args):
 	if(args.testNetwork):
 		print("Evaluating network",network_name)
 		model.TestModel()
+		print("Best model used for testing is",model.GetBestModel())	
 		return
 	
 	#visualize inputs
@@ -81,10 +82,7 @@ def runCNN(args):
 	model.TestModel()
 	model.VizModelWeights()
 	model.VizFeatureMaps()
-	
-	#test on JetHT
-	#jetHT_reader = CSVReader(printstats)
-	#model.TestModel_data(MC_reader.GetData(), True,"GJets_HT400to600")
+	print("Best model used for testing is",model.GetBestModel())	
 
 def main():
 	parser = argparse.ArgumentParser()
@@ -94,6 +92,7 @@ def main():
 	parser.add_argument("--SCtype",help='type of SCs to run over',choices=["CMS","BHC","BHCPUCleaned"],required=True)
 	parser.add_argument('--testNetwork',help='evaluate trained network specified by other flags',default=False,action='store_true')
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
+	parser.add_argument("--debug",help="run over only a few parquet files per sample to debug faster",action='store_true',default=False)
 	args = parser.parse_args()
 
 	runCNN(args)
