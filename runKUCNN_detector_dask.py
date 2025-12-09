@@ -1,4 +1,4 @@
-import argparse
+mport argparse
 from ProcessData import CSVReader, TTreeReader
 import pandas as pd
 from ConvNN import ConvNeuralNetwork
@@ -89,7 +89,7 @@ def main():
 	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","small8","small4","small3","small2","xsmall3"],default="small3")
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
-	parser.add_argument("--SCtype",help='type of SCs to run over',choices=["CMS","BHC","BHCPUCleaned"],required=True)
+	parser.add_argument("--SCtype",help='type of SCs to run over',choices=["CMS","BHC","BHCPUCleaned"],default="CMS")
 	parser.add_argument('--testNetwork',help='evaluate trained network specified by other flags',default=False,action='store_true')
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--debug",help="run over only a few parquet files per sample to debug faster",action='store_true',default=False)
