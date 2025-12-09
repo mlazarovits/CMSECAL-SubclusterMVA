@@ -128,7 +128,6 @@ class FileReader:
 		if(isobkg > 0):
 			print(" ",tot, (self._obj+"s, isobkg: "+str(isobkg)+" {:.2f}%, nonisobkg: "+str(nonisobkg)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
 
-	'''
 	def PrintStats(self, data = None):
 		if data is None:
 			data = self._data
@@ -143,7 +142,7 @@ class FileReader:
 		tot = len(data)
 		if(isobkg > 0):
 			print(" ",tot, ("subclusters, isobkg: "+str(isobkg)+" {:.2f}%, nonisobkg: "+str(nonisobkg)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
-   	''' 
+	
 	#keep rows with values in col > val
 	def ApplyColCut(self, col, val, indata = None):
 		if indata is None:
@@ -287,7 +286,33 @@ class TTreeReader(FileReader):
 		super().__init__(obj, printStats)
 		self._tag = tag
 		self._output_parquet_data = self._output_parquet_data+f"/{self._tag}_{self._obj}s"
+
+	#def MakeParquetChunks(self, file, sample, step_size=10000, recreate_files = False):
  
+	#def ReadParquetChunks(self, sample, eosdir=""):
+		#parquet_dir = self._output_parquet_data
+		#if eosdir != "":
+		#	parquet_dir = eosdir #needs to include redirector
+		#print("Reading from parquet files at",parquet_dir,"into Dask df")
+		#parquet_path = parquet_dir+"/*.parquet"
+		#if debug:
+		#	parquet_path = parquet_dir+"/chunk_00000_sample_*.parquet"
+		#
+
+		#ddf = dd.read_parquet(parquet_path)
+		#t2 = time.perf_counter()
+		#print("took",(t2-t1),"seconds to read data from parquet table, total # rows",ddf.shape[0].compute())
+		##rename cols
+		#new_cols = ["label" if col == f"{self._obj}_trueLabel_{self._tag}" else col for col in ddf.columns]
+		#if self._obj == "SC":
+		#	new_cols = [f"{self._obj}_EtaCenter" if col == f"{self._obj}_EtaCenter_{self._tag}" else col for col in new_cols]
+		#	new_cols = [f"{self._obj}_seedTime" if col ==  f"{self._obj}_seedTime_CMS" else col for col in new_cols]
+		#ddf = ddf.rename(columns=dict(zip(ddf.columns, new_cols))) #inplace not supported for dask dfs!! (lazy execution remember??)
+		#self.PrintStatsDask(ddf)
+		#self._dask_df = ddf
+		#then call or pass to CleanDataDask
+		
+
 	def ProcessCNNBranches(self, file, sample, step_size=10000, recreate_files = False):
 		branches = [
 			f"SC_rh_iEta_{self._tag}",
