@@ -4,12 +4,20 @@ Classifying subclusters of rechits from CMS ECAL in time and space
 ### Dependencies
 - Install [Miniconda](https://docs.anaconda.com/miniconda/) to keep the python package installations separate from the system installation
 - create a miniconda environment with the following packages installed
-	- python (issues with latest version of TF and python - see Troubleshooting)
+	- python (if issues with latest version of TF and python - see Troubleshooting)
 	- pandas
 	- numpy
 	- keras
+	- tensorflow
 	- matplotlib
-	- sklearn
+	- scikit-learn
+	- scipy
+	- dask
+	- pyarrow
+	- uproot
+	- awkward
+	- mplhep for plotting (integrated into the network classes)
+	- xrootd + fsspec-xrootd (if accessing remote files)
 - build the conda environment with the associated packages by running
 ```
 conda create -n [env_name] python pandas tensorflow
@@ -27,10 +35,18 @@ conda deactivate
 
 
 ### Data Parsing
+First need to run `MakeParquetData.py` to create parquet files given a root file. Parquet files are compressed and optimized file formats for columnar data. They are easy to parse in a dataframe library like Dask (which is used) or pandas. This needs to be run once, unless the input root file changes (or you want to run over more data - right now there is a cap on EGamma chunks of 1000)
+
+## outdated
 - input: CSV file
 `CSVReader` class in `ProcessData.py` is in charge of parsing CSV files. User needs to `CleanData()` and then extract the data with `GetData()`.
 
 ### Running neural network
+After data has been converted from ROOT files to parquet files, can run the network with for example
+```
+python3 runKUCNN_detector_dask.py -e testDualClass -a 8_4_2 --nEpochs 1000 --parquetpath parquet_output/CMS_SCs/
+```
+
 From the input data, the user needs to pass the input data shape to `DeepNN` constructor. (Eventually will pass data when training network).
 ```
 python3 runDNN.py
