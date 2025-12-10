@@ -1,0 +1,194 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import uproot
+import awkward as ak
+from concurrent.futures import ThreadPoolExecutor
+from abc import ABC, abstractmethod
+import pyarrow as pa #for memory management
+import pyarrow.parquet as pq
+import pyarrow.dataset as ds
+import dask.dataframe as dd
+import os
+import time
+
+class FileReader:
+	def __init__(self, obj, printStats = True):
+		self._tag = ""
+		self._output_parquet_data = "parquet_output"
+		self._infiles = None
+		os.makedirs(self._output_parquet_data,exist_ok=True)
+		self._obj = obj
+
+	def SetParquetOutputDir(self, pdir):
+		if not os.path.exists(pdir):
+			os.mkdir(pdir)
+		self._output_parquet_data = pdir
+
+
+class TTreeReader(FileReader):
+	def __init__(self, obj, tag, printStats = False):
+		super().__init__(obj, printStats)
+		self._tag = tag
+		self._output_parquet_data = self._output_parquet_data+f"/{self._tag}_{self._obj}s"
+		os.makedirs(self._output_parquet_data,exist_ok=True)
+
+	def ProcessCNNBranches(self, file, sample, step_size=10000, maxnchunk = -1, debug = False, recreate_files = False):
+		branches = [
+			f"SC_rh_iEta_{self._tag}",
+			f"SC_rh_iPhi_{self._tag}",
+			f"SC_rh_Energy_{self._tag}",
+			f"SC_trueLabel_{self._tag}",
+			f"SC_EtaCenter_{self._tag}",
+			f"SC_seedTime_CMS"
+		]
+		print("Branches",branches)
+		data_accum = []
+		nchunk = 0
+		total_time = 0
+
+		if(isinstance(step_size,int) and maxnchunk == -1):
+			print("Processing sample",sample,"from file",file,"with step size",step_size)
+			nentries = uproot.open(file)["tree"].num_entries
+			print("File",file,"has",nentries,"entries and therefore",(nentries + step_size - 1) // step_size,"chunks with step size",step_size)
+		else:
+			print("Chunking file",file,"in",maxnchunk,"chunks with step size",step_size)
+		
+		
+		for chunk in uproot.iterate(file + ":tree", branches, step_size=step_size, library="ak",
+				num_workers = 8, #multithreading options
+				decompression_executor=ThreadPoolExecutor(max_workers=8),
+				interpretation_executor=ThreadPoolExecutor(max_workers=8)
+			):
+			parquet_fname = f"chunk_{nchunk:05d}_sample_{sample}_type_{self._tag}.parquet"
+			if(os.path.exists( os.path.join(self._output_parquet_data, parquet_fname) )) and not recreate_files:
+				print(os.path.join(self._output_parquet_data, parquet_fname),"exists - skipping",end="\r",flush=True)
+				nchunk += 1
+				continue
+			t1 = time.perf_counter()
+			if nchunk > 2 and debug:
+				print("Break from debugging")
+				return
+			if maxnchunk != -1 and nchunk > maxnchunk:
+				break
+			print(f"Processing chunk #{nchunk}",end="\r",flush=True)
+			
+			sc_counts = ak.num(chunk[f"SC_trueLabel_{self._tag}"])
+			#write to parquet table directly
+			table = pa.table({
+				"event_idx": np.repeat(np.arange(len(chunk)), sc_counts),
+				"sc_idx": ak.to_numpy(ak.flatten(ak.local_index(chunk[f"SC_trueLabel_{self._tag}"]))),
+				f"SC_EtaCenter_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"SC_EtaCenter_{self._tag}"],axis=1)),
+				f"SC_seedTime_CMS" : ak.to_numpy(ak.flatten(chunk[f"SC_seedTime_CMS"],axis=1)), #ak.to_numpy must be flat arrays
+				f"SC_trueLabel_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"SC_trueLabel_{self._tag}"],axis=1)),
+				f"SC_rh_iEta_{self._tag}" : ak.to_list(ak.flatten(chunk[f"SC_rh_iEta_{self._tag}"], axis=1)), #ak.to_list can be jagged arrays
+				f"SC_rh_iPhi_{self._tag}" : ak.to_list(ak.flatten(chunk[f"SC_rh_iPhi_{self._tag}"], axis=1)),
+				f"SC_rh_Energy_{self._tag}" : ak.to_list(ak.flatten(chunk[f"SC_rh_Energy_{self._tag}"], axis=1)),
+				"sample": pa.array([sample] * sum(sc_counts))
+			})	
+
+			#table = pa.Table.from_pandas(pd.DataFrame(data))
+			pq.write_table(table, os.path.join(self._output_parquet_data, parquet_fname))
+
+			#data_accum.append(df)
+			nchunk += 1
+			t2 = time.perf_counter()
+			total_time += (t2 - t1)
+			print(f"Chunk #{nchunk} processed took",(t2-t1),"seconds",end="\r",flush = True)
+		
+		# Concatenate all chunks into single DataFrame
+		#data_accum.append(self._data)
+		#self._data = pd.concat(data_accum, ignore_index=True)
+		print("Done processing file",file,"took",total_time,"seconds total with",total_time / nchunk,"seconds on average per chunk\n\n")
+	
+	def ProcessFileCNN(self, file, sample, step_size=10000, maxnchunk = -1, debug=False):
+		self.ProcessCNNBranches(file,sample,step_size,maxnchunk,debug)
+
+	def ProcessFileDNN(self, file, sample, step_size=10000, maxnchunk = -1, debug=False):
+		self.ProcessDNNBranches(file,sample,step_size, maxnchunk)
+
+	
+	def ProcessDNNBranches(self, file, sample, step_size=10000,  maxnchunk = -1,debug = False):
+		branches = [
+			f"Photon_EtaVar_{self._tag}",
+			f"Photon_PhiVar_{self._tag}",
+			f"Photon_EtaPhiCov_{self._tag}",
+			f"Photon_majorLength_{self._tag}",
+			f"Photon_minorLength_{self._tag}",
+			f"Photon_hcalTowerSumEtConeDR04",
+			f"Photon_trkSumPtSolidConeDR04",
+			f"Photon_trkSumPtHollowConeDR04",
+			f"Photon_hadTowOverEM",
+			f"Photon_ecalRHSumEtConeDR04",
+			f"Photon_Pt_{self._tag}",
+			f"Photon_EtaCenter_{self._tag}",
+			f"Photon_trueLabel_{self._tag}"
+			
+		]
+		print("Branches",branches)
+		data_accum = []
+		nchunk = 0
+		total_time = 0
+
+		print("Processing sample",sample,"from file",file,"with step size",step_size)
+		nentries = uproot.open(file)["tree"].num_entries
+		if(isinstance(step_size,int)):
+			print("File",file,"has",nentries,"entries and therefore",(nentries + step_size - 1) // step_size,"chunks with step size",step_size)
+		else:
+			print("Chunking file",file,"in",step_size,"chunks")
+	
+		for chunk in uproot.iterate(file + ":tree", branches, step_size=step_size, library="ak",
+				num_workers = 8, #multithreading options
+				decompression_executor=ThreadPoolExecutor(max_workers=8),
+				interpretation_executor=ThreadPoolExecutor(max_workers=8)
+			):
+			parquet_fname = f"chunk_{nchunk:05d}_sample_{sample}_type_{self._tag}_Photons.parquet"
+			if(os.path.exists( os.path.join(self._output_parquet_data, parquet_fname) )):
+				#print(os.path.join(self._output_parquet_data, parquet_fname),"exists. Please provide a unique sample name for",file)
+				#print(os.path.join(self._output_parquet_data, parquet_fname),"exists. Skipping.",end="\r",flush=True)
+				continue
+			if nchunk > 2 and debug:
+				print("Break from debugging")
+				return
+			if maxnchunk != -1 and nchunk > maxnchunk:
+				break
+			t1 = time.perf_counter()
+			print(f"Processing chunk #{nchunk}",end="\r",flush=True)
+			
+			pho_counts = ak.num(chunk[f"Photon_trueLabel_{self._tag}"])
+			#write to parquet table directly
+			table = pa.table({
+				"event_idx": np.repeat(np.arange(len(chunk)), pho_counts),
+				"pho_idx": ak.to_numpy(ak.flatten(ak.local_index(chunk[f"Photon_trueLabel_{self._tag}"]))),
+				f"Photon_trueLabel_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_trueLabel_{self._tag}"],axis=1)),
+				f"Photon_EtaVar_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_EtaVar_{self._tag}"],axis=1)),
+				f"Photon_PhiVar_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_PhiVar_{self._tag}"],axis=1)),
+				f"Photon_EtaPhiCov_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_EtaPhiCov_{self._tag}"],axis=1)),
+				f"Photon_majorLength_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_majorLength_{self._tag}"],axis=1)),
+				f"Photon_minorLength_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_minorLength_{self._tag}"],axis=1)),
+				f"Photon_hcalTowerSumEtConeDR04": ak.to_numpy(ak.flatten(chunk[f"Photon_hcalTowerSumEtConeDR04"],axis=1)),
+				f"Photon_trkSumPtSolidConeDR04": ak.to_numpy(ak.flatten(chunk[f"Photon_trkSumPtSolidConeDR04"],axis=1)),
+				f"Photon_trkSumPtHollowConeDR04": ak.to_numpy(ak.flatten(chunk[f"Photon_trkSumPtHollowConeDR04"],axis=1)),
+				f"Photon_hadTowOverEM": ak.to_numpy(ak.flatten(chunk[f"Photon_hadTowOverEM"],axis=1)),
+				f"Photon_ecalRHSumEtConeDR04": ak.to_numpy(ak.flatten(chunk[f"Photon_ecalRHSumEtConeDR04"],axis=1)),
+				f"Photon_Pt_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_Pt_{self._tag}"],axis=1)),
+				f"Photon_EtaCenter_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_EtaCenter_{self._tag}"],axis=1)),
+				"sample": pa.array([sample] * sum(pho_counts))
+			})	
+
+			pq.write_table(table, os.path.join(self._output_parquet_data, parquet_fname))
+
+			#data_accum.append(df)
+			nchunk += 1
+			t2 = time.perf_counter()
+			total_time += (t2 - t1)
+			print(f"Chunk #{nchunk} processed took",(t2-t1),"seconds",end="\r",flush = True)
+		
+		print("Done processing file",file,"took",total_time,"seconds total with",total_time / nchunk,"seconds on average per chunk\n\n")
+	
+
+	def ReadDataFromParquetTable(self):
+		dataset = pq.ParquetDataset(self._output_parquet_data)
+		table = dataset.read()
+		return table.to_pandas()	
+
+
