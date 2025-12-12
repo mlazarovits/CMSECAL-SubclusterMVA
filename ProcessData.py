@@ -19,7 +19,7 @@ class DataCleaner:
 		self._output_parquet_data = parquet_path
 		self._obj = obj
 		self._tag = objtype
-	
+			
 	def GetDaskData(self, blocksize = "100 MB", debug = False):
 		print("Reading from parquet files at",self._output_parquet_data,"into Dask df")
 		t1 = time.perf_counter()
@@ -67,7 +67,7 @@ class DataCleaner:
 		#  Remove invalid labels (lazy, memory-efficient)
 		ddf = ddf.query("label != -1 and label != -999")
 		if self._printstats:
-			print("After unmatched/invalid label removal:", ddf.shape[0].compute())
+			print("Total after unmatched/invalid label removal:", ddf.shape[0].compute())
 			self.PrintStatsDask(ddf)
 
 		#  Apply column cuts (e.g., Energy)
@@ -76,7 +76,7 @@ class DataCleaner:
 			# Ensure ApplyColCut works with Dask: avoid .values
 			ddf = self.ApplyColCut("Energy", 30, ddf)
 			if prinstats:
-				print("after energy cut > 30")
+				print("Total after energy cut > 30:",ddf.shape[0].compute() )
 				self.PrintStatsDask(ddf)
 	
 		#  Drop rows with any NaNs
@@ -89,7 +89,7 @@ class DataCleaner:
 		#		print("Warning: column", col, "still has NaNs")
 	
 		if self._printstats:
-			print("After dropna:",ddf.shape[0].compute())
+			print("Total after dropna:",ddf.shape[0].compute())
 			self.PrintStatsDask(ddf)
 	
 		t2 = time.perf_counter()
