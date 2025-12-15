@@ -20,16 +20,32 @@ class DataCleaner:
 		self._obj = obj
 		self._tag = objtype
 			
-	def GetDaskData(self, blocksize = "100 MB", debug = False):
+	def GetDaskData(self, subdirs = [], blocksize = "100 MB", debug = False):
 		print("Reading from parquet files at",self._output_parquet_data,"into Dask df")
 		t1 = time.perf_counter()
 		if self._output_parquet_data[-1] != "/":
 			self._output_parquet_data += "/"
-		parquet_path = self._output_parquet_data+"*.parquet"
-		if debug:
-			parquet_path = self._output_parquet_data+"chunk_00000_sample_*.parquet"
-
-		ddf = dd.read_parquet(parquet_path,blocksize=blocksize)
+		if len(subdirs) < 1: 
+			print("reading parquet files in",self._output_parquet_data)
+			if debug:
+				print("Debug mode")
+				parquet_files = self._output_parquet_data+"chunk_00000_sample_*.parquet"
+			else:
+				parquet_files = self._output_parquet_data+"*.parquet"
+		else:
+			parquet_files = []
+			for subdir in subdirs:
+				print("reading parquet files in",self._output_parquet_data+"/"+subdir)
+				if debug:
+					print("Debug mode")
+					if "SMS_GlGl" in subdir:
+						parquet_files.append(self._output_parquet_data+"/"+subdir+"/chunk_00000_*GlGl_mGl_1500_mN2_500_mN1_100*.parquet")
+					else:
+						parquet_files.append(self._output_parquet_data+"/"+subdir+"/chunk_00000_sample_*.parquet")	
+				else:
+					parquet_files.append(self._output_parquet_data+"/"+subdir+"/*.parquet")
+		print("parquet_files",parquet_files)	
+		ddf = dd.read_parquet(parquet_files,blocksize=blocksize)
 		t2 = time.perf_counter()
 		print("took",(t2-t1),"seconds to read data from parquet table, total # rows",ddf.shape[0].compute())
 		if ddf.shape[0].compute() == 0:
@@ -46,6 +62,64 @@ class DataCleaner:
 	def SetPrintStats(self, p):
 		self._printstats = p
 
+	#cleans data
+	def CleanDaskData(self, ddf, dropna = False):
+		print("cleaning dask data")
+		t1 = time.perf_counter()
+		"""
+		Cleans the input DataFrame or Dask DataFrame:
+		- removes invalid/unmatched labels
+		- applies column cuts (e.g., Energy)
+		- drops rows with NaNs
+		Returns a cleaned Dask DataFrame (lazy until compute()).
+		"""
+
+
+		#  Print initial stats (compute row count lazily)
+		if self._printstats:
+			nrows = ddf.shape[0].compute()  # works for Dask
+			print("Cleaning data", nrows, self._obj+"s","initially")
+			self.PrintStatsDask(ddf)
+				
+		#  Remove invalid labels (lazy, memory-efficient)
+		ddf = ddf.query("label != -1 and label != -999")
+		if self._printstats:
+			print("Total after unmatched/invalid label removal:", ddf.shape[0].compute())
+			self.PrintStatsDask(ddf)
+
+		#  Apply column cuts (e.g., Energy)
+		if "Energy" in ddf.columns:
+			print("Applying energy cut")
+			# Ensure ApplyColCut works with Dask: avoid .values
+			ddf = self.ApplyColCut("Energy", 30, ddf)
+			if prinstats:
+				print("Total after energy cut > 30:",ddf.shape[0].compute() )
+				self.PrintStatsDask(ddf)
+	
+		#  Drop rows with any NaNs
+		# Lazy operation; assign back
+		if dropna:
+			ddf = ddf.dropna(how="any")
+		
+		# check for NaNs per column (compute only scalars) - takes too long
+		#for col in ddf.columns:
+		#	has_nan = ddf[col].isna().any().compute()  # lazy scalar
+		#	if has_nan:
+		#		print("Warning: column", col, "still has NaNs")
+	
+		if self._printstats:
+			print("Total after dropna:",ddf.shape[0].compute())
+			self.PrintStatsDask(ddf)
+	
+		t2 = time.perf_counter()
+		print("took",(t2-t1),"seconds to clean dask data")
+		return ddf
+
+
+	def ConvertToPandas(self, ddf):
+		self._data = ddf.compute() 
+		print("ConvertToPandas - len self data",len(self._data))
+
 	#cleans data and converts to pandas
 	def CleanAndConvert(self, ddf):
 		print("cleaning dask data")
@@ -57,7 +131,8 @@ class DataCleaner:
 		- drops rows with NaNs
 		Returns a cleaned Dask DataFrame (lazy until compute()).
 		"""
-	
+
+
 		#  Print initial stats (compute row count lazily)
 		if self._printstats:
 			nrows = ddf.shape[0].compute()  # works for Dask
@@ -82,6 +157,7 @@ class DataCleaner:
 		#  Drop rows with any NaNs
 		# Lazy operation; assign back
 		ddf = ddf.dropna(how="any")
+
 		# check for NaNs per column (compute only scalars) - takes too long
 		#for col in ddf.columns:
 		#	has_nan = ddf[col].isna().any().compute()  # lazy scalar
@@ -97,9 +173,9 @@ class DataCleaner:
 		self._data = ddf.compute()
 
 	def PrintStatsDask(self, ddf):
-		BH = (ddf["label"] == 2).sum().compute()
-		if(BH > 0):
-			phys = (ddf["label"] == 1).sum().compute()
+		phys = (ddf["label"] == 1).sum().compute()
+		if(phys > 0):
+			BH = (ddf["label"] == 2).sum().compute()
 			spike = (ddf["label"] == 3).sum().compute()
 			tot = phys + spike + BH 
 			print(" ",tot, ("phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
@@ -118,7 +194,7 @@ class DataCleaner:
 		BH = len(data[data["label"] == 2])
 		spike = len(data[data["label"] == 3])
 		tot = phys + BH + spike
-		if(BH > 0):
+		if(phys > 0):
 			print(" ",tot, ("phys: "+str(phys)+" {:.2f}%, spike: "+str(spike)+" {:.2f}%, BH: "+str(BH)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
 			return
 
@@ -159,6 +235,40 @@ class DataCleaner:
 		sampled_subset = self._data[self._data['label'] == nclass].sample(n=nsamp, random_state=42)	
 		#replace all rows with label l by this sampled subset
 		self._data = pd.concat([self._data[self._data['label'] != nclass], sampled_subset], ignore_index=True)
+	
+	def CapSample(self,sample,nsamp):
+		sampled_subset = self._data[self._data['sample'] == sample].sample(n=nsamp, random_state=42)	
+		#replace all rows with label l by this sampled subset
+		self._data = pd.concat([self._data[self._data['sample'] != sample], sampled_subset], ignore_index=True)
+
+	def CapSampleDask(self, ddf, sample, nsamp):
+		# rows matching sample
+		ddf_sample = ddf[ddf["sample"] == sample]
+		ddf_other  = ddf[ddf["sample"] != sample]
+	
+		# total rows in this sample (lazy)
+		total = ddf_sample.shape[0].compute()
+	
+		if total <= nsamp:
+		    return ddf
+	
+		frac = nsamp / total
+	
+		sampled_subset = ddf_sample.sample(
+		    frac=frac,
+		    random_state=42
+		)
+	
+		ret_ddf = dd.concat(
+		    [ddf_other, sampled_subset],
+		    interleave_partitions=True
+		)
+		if self._printstats:
+			print("Total after balancing sample",sample+": ", ret_ddf.shape[0].compute())
+			self.PrintStatsDask(ret_ddf)
+		return ret_ddf
+
+
 	
 	#cut off samples depending on feature < val
 	def CapFeature(self,nclass,feature,val):
@@ -238,8 +348,9 @@ class DataCleaner:
 		for col in cols:
 			if "Var" not in col:
 				continue
-			newcolname = col[:col.find("Var")]+"Sig"
+			newcolname = col[:col.find("Var")]+"Sig_"+self._tag
 			self._data[newcolname] = np.sqrt(self._data[col])
+		print("make sigmas - all cols",self._data.columns)
 	
 	def SetFeatureToVal(self, feature, val):
 		self._data[feature] = val

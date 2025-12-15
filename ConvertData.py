@@ -26,10 +26,12 @@ class FileReader:
 
 
 class TTreeReader(FileReader):
-	def __init__(self, obj, tag, printStats = False):
+	def __init__(self, obj, tag, extra="", printStats = False):
 		super().__init__(obj, printStats)
 		self._tag = tag
 		self._output_parquet_data = self._output_parquet_data+f"/{self._tag}_{self._obj}s"
+		if extra != "":
+			self._output_parquet_data += "_"+extra
 		os.makedirs(self._output_parquet_data,exist_ok=True)
 
 	def ProcessCNNBranches(self, file, sample, step_size=10000, maxnchunk = -1, debug = False, labelas = -999, recreate_files = False):
@@ -106,9 +108,19 @@ class TTreeReader(FileReader):
 		print("Done processing file",file,"took",total_time,"seconds total with",total_time / nchunk,"seconds on average per chunk\n\n")
 	
 	def ProcessFileCNN(self, file, sample, step_size=10000, maxnchunk = -1, debug=False, labelas = -999):
+		if sample == "" and "SMS" in file:
+			match = "_AODSIM_"
+			sample = file[file.find("SMS-"):]
+			sample = sample.replace("_AODSIM","")
+			sample = sample[:sample.find("_superclusters")]
+		if sample.find("-") != -1:
+			sample = sample.replace("-","_")
 		self.ProcessCNNBranches(file,sample,step_size,maxnchunk,debug,labelas)
+		print("Wrote parquet chunks to",self._output_parquet_data)
 
 	def ProcessFileDNN(self, file, sample, step_size=10000, maxnchunk = -1, debug=False, labelas = -999):
+		if sample.find("-") != -1:
+			sample = sample.replace("-","_")
 		self.ProcessDNNBranches(file,sample,step_size, maxnchunk)
 		print("Wrote parquet chunks to",self._output_parquet_data)
 	
