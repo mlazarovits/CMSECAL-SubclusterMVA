@@ -22,10 +22,15 @@ class ModelBase(ABC):
 		self._catnames = [] 
 		self._catcolors = []
 		self._wtrain = None
+		self._xtest_energy = None
+		self._xtrain_df = None
+		self._ytrain_df = None
+		self._ytest_energy = None
 		self._train_gen = None
 		self._val_gen = None
 		self._test_gen = None
 		self._best_model = None
+		self._discr_info = None
 		super().__init__()
 	
 	@abstractmethod
@@ -47,13 +52,28 @@ class ModelBase(ABC):
 	def SetCategoryNames(self, catnames, catcolors = {}):
 		self._catnames = catnames
 		self._catcolors = catcolors
+
+	def write_summary_to_file(self,s):
+		with open(self._discr_info, "a") as f:
+			print(s, file=f) 
 	
 	def summary(self):
 		self._model.summary()
+		self._model.summary(print_fn=self.write_summary_to_file)
 	
 	@abstractmethod
 	def VizSamples(self):
 		pass
+	
+	#expect input pandas df
+	def SetTestData(self, indata, label = ""):
+		self._xtest_df, self._ytest = self.StripLabels(indata)
+		self._xtest = self.MakeSamples(self._xtest_df)
+		
+		ylabels = self._lb.inverse_transform(self._ytest)
+		self._xtest_df["label"] = ylabels
+		if label != "":
+			self._extra_label = label
 
 	def VizMetric(self, history, fname):
 		plt.figure()
@@ -84,29 +104,35 @@ class ModelBase(ABC):
 			if diff < mindiff:
 				mindiff = diff
 				bestIdx = i
-		print("FPR ~"+str(fpr_thresh)+", cat (sig)",ncat,self._catnames[ncat],"fpr",fpr_cat[bestIdx],"tpr",tpr_cat[bestIdx],"thresh on sig cat",thresh_cat[bestIdx])
+		discr_txt = "FPR ~"+str(fpr_thresh)+", cat (sig) "+str(ncat)+" "+str(self._catnames[ncat])+" fpr "+str(fpr_cat[bestIdx])+" tpr "+str(tpr_cat[bestIdx])+" thresh on sig cat "+str(thresh_cat[bestIdx])
+		print(discr_txt)
+		with open(self._discr_info, "a") as f:
+			f.write("\n")
+			f.write(discr_txt)
 		return thresh_cat[bestIdx]
 
 	def MakeROC(self, ytrue, ypred, pos_label=1, fpr_threshs = [], ret_fpr_thresh = -1):
 		print("pos_label",pos_label,"# ytrue",len(ytrue),"# ypred",len(ypred),"ytrue",ytrue[0],"ypred",ypred[0])
 		#need to process ytrue and ypred s.t. they are given to roc_curve as 1D arrays of assignment (ytrue - 0 or 1) and prediction (score of 'signal'/positive class)
-		ytrue_1D = []
-		ypred_1D = []
-		for y in range(len(ytrue)):
-			ytrue_1D.append(ytrue[y][pos_label])
-			ypred_1D.append(ypred[y][pos_label])
+		ypred_1D = [ypred[y][pos_label] for y, _ in enumerate(ypred)]
+		#print("ypred_1D",ypred_1D)
+		#print("ytrue",ytrue[0],"ypred",ypred_1D[0],ypred.flatten()[0],ypred[0])
 		#dont need to give 'pos label' to roc_curve since those values have been selected above
-		fpr, tpr, thresh = roc_curve(ytrue_1D, ypred_1D)
+		fpr, tpr, thresh = roc_curve(ytrue.flatten(), ypred_1D,pos_label = pos_label)
 
 		ytrue_test = np.zeros(ytrue[0].shape)
 		#put in one-hot encoding
-		pos_cat = [1 if idx == pos_label else 0 for idx, i in enumerate(ytrue_test)]
-		neg_cat = [1 if idx != pos_label else 0 for idx, i in enumerate(ytrue_test)]
-		poscat = self._lb.inverse_transform([pos_cat])[0][0]
+		poscat = self._lb.inverse_transform(np.array(pos_label))[0]
+		print("poscat",poscat,"translates to label",poscat)
+		ret_discr_thresh = -1
 		for fpr_thresh in fpr_threshs:
 			self.FindDiscThresh(fpr_thresh, poscat, fpr, tpr, thresh)
 		if ret_fpr_thresh != -1:
-			discr_thresh = self.FindDiscThresh(ret_fpr_thresh, poscat, fpr, tpr, thresh)
+			ret_discr_thresh = self.FindDiscThresh(ret_fpr_thresh, poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.02,  poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.01,  poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.005, poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.001, poscat, fpr, tpr, thresh)
 	
 		#tpr = signal efficiency
 		#1 - tpr = fnr = signal inefficiency
@@ -120,7 +146,7 @@ class ModelBase(ABC):
 		#tpr = [1 - i for i in tpr]
 		return fpr, tpr, ret_discr_thresh
 
-	def PlotROCs(self, fprs, tprs, labels, colors = [], fextra = "", class1name = "sig", class2name = "bkg"):
+	def PlotROCs(self, fprs, tprs, labels, colors = [], fextra = "", sigclassname = "sig", bkgclassname = "bkg"):
 		fig = plt.figure()
 		ax = plt.gca()
 	
@@ -146,16 +172,18 @@ class ModelBase(ABC):
 			xlabel="Background mistag",
 			ylabel="Signal efficiency",
 		)
-		ax.set_title(self._name+"\n"+class1name+" (sig) vs "+class2name+" (bkg) ROC",fontsize=16)
-		ax.set_ylim([0.8, 1.0])
-		ax.set_xlim([1e-6,0.3])
+		ax.set_title(self._name+"\n"+sigclassname+" (sig) vs "+bkgclassname+" (bkg) ROC",fontsize=16)
+		ax.set_ylim([0.95, 1.0])
+		ax.set_xlim([1e-6,0.01])
 		ax.grid()
 		if(labels != [""]):
 			ax.legend()
 
-		plotname = self._path+"/ROCplot"
+		plotname = self._path+"/ROCplot_sig_"+sigclassname+"_bkg_"+bkgclassname
 		if fextra != "":
 			plotname += "_"+fextra
+		if self._extra_label != "":
+			plotname += "_"+self._extra_label
 		plotname += "."+self._form 
 		print("Saving ROC plot to",plotname)
 		plt.savefig(plotname,format=self._form)
@@ -165,9 +193,9 @@ class ModelBase(ABC):
 
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
-	def VizROC(self, ytrue, ypred, class1name = "sig", class2name = "bkg", pos_label=1, fextra="", fpr_threshs = [], fpr_thresh = -1):
-		fpr, tpr, discr_thresh = self.MakeROC(ytrue, ypred, pos_label, fpr_threshs)
-		self.PlotROCs([fpr.tolist()], [tpr.tolist()], [""],["pink"], fextra, class1name, class2name)
+	def VizROC(self, ytrue, ypred, sigclassname = "sig", bkgclassname = "bkg", pos_label=1, fextra="", fpr_threshs = [], fpr_thresh = -1):
+		fpr, tpr, discr_thresh = self.MakeROC(ytrue, ypred, pos_label, fpr_threshs, fpr_thresh)
+		self.PlotROCs([fpr.tolist()], [tpr.tolist()], [""],["pink"], fextra, sigclassname, bkgclassname)
 		return discr_thresh
 	
 	#ytrue and ypred are given in onehot form	
@@ -387,8 +415,8 @@ class ModelBase(ABC):
 					valloss = name[name.rfind("_")+1:name.find("valloss")]
 					files[valloss] = root+"/"+name
 			if(len(files) < 1):
-				print("No models found.")
-				return
+				print("No models found in path",self._path)
+				exit()
 			keys = list(files.keys())
 			self._best_model = files[min(keys)]
 		return self._best_model
@@ -396,7 +424,7 @@ class ModelBase(ABC):
 	def LoadBestModel(self):
 		if not os.path.exists(self._path):
 			print("Error: network at",self._path,"does not exist. Select another network or train this one.")
-			return
+			exit()
 		#get best model
 		files = {}
 		for root, dirs, f in os.walk(self._path):
@@ -407,12 +435,19 @@ class ModelBase(ABC):
 				files[valloss] = root+"/"+name
 		if(len(files) < 1):
 			print("No models found.")
-			return
+			exit()
 		keys = list(files.keys())
 		
 		#load best model
 		self._best_model = files[min(keys)]
 		print("Loading model",files[min(keys)])
+		with open(self._discr_info, "a") as f:
+			f.write("\n")
+			f.write("Using model for testing: "+files[min(keys)])
+			f.write("\nWith samples: ")
+			samples = self._xtest_df["sample"].unique()
+			for sample in samples:
+				f.write(sample+" ")
 		self._model.load_weights(files[min(keys)])	
 
 	def TestModel_EnergySplit(self,x,energy,ytrue,ypred,pos_label,batch_size=1,verb=1,fextra=""):
@@ -485,6 +520,7 @@ class ModelBase(ABC):
 		self.LoadBestModel()
 		#save optimal model as .keras for frugally-deep
 		ypred = self._model.predict(self._test_gen,batch_size=batch_size,verbose=verb)
+		print("orignal preds",ypred)
 		#get truth labels of testset
 		ytest = self._test_gen.GetTrueLabels()	
 	
@@ -506,7 +542,7 @@ class ModelBase(ABC):
 			if labels == [4,6]:
 				#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
 				pos_label = 0
-			discr_thresh = self.VizROC(ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
+			discr_thresh = self.VizROC(ytest, ypred,sigclassname=classes[1],bkgclassname=classes[0],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
 			discr_threshs.append(discr_thresh)
 		else:  #multiclass
 			#plot physics bkg vs other bkgs
@@ -525,8 +561,15 @@ class ModelBase(ABC):
 		self.LoadBestModel()
 		#save optimal model as .keras for frugally-deep
 		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
+		print("original ypred",ypred[0])
 		#add each score in ypred to xtest df as separate columns
-		cols = [f"score_{val[1]}" for val in enumerate(np.unique(self._lb.inverse_transform(self._ytest)))]
+		labels_set = np.unique(self._lb.inverse_transform(self._ytest))
+		print("labels",labels_set)
+		cols = [f"score_{int(val[1])}" for val in enumerate(labels_set)]
+		if len(labels_set) < 3: #add on 1-other class score for two columns
+			#'signal' is class 1 -> given from network
+			ypred = np.column_stack([1-ypred, ypred])
+		print("ypred",ypred[0],"cols",cols)
 		scores_df = pd.DataFrame(ypred, columns=cols)
 		#reset row indices
 		self._xtest_df = self._xtest_df.reset_index(drop=True)
@@ -545,12 +588,13 @@ class ModelBase(ABC):
 			for key in self._catnames.keys():
 				labels.append(key)
 				classes.append(self._catnames[key])
+			#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
 			pos_label = 1
-			if labels == [4,6]:
-				#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
-				pos_label = 0
-			discr_thresh = self.VizROC(self._ytest, ypred,class1name=classes[0],class2name=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
+			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[1],bkgclassname=classes[0],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
 			discr_threshs.append(discr_thresh)
+			#do for phys bkg/iso bkg too
+			pos_label = 0
+			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[0],bkgclassname=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
 			#do energy breakdown
 			if(self._xtest_energy is not None):
 				self.TestModel_EnergySplit(self._xtest,self._xtest_energy,self._ytest_energy,ypred,pos_label,batch_size=batch_size,verb=verb)
@@ -619,6 +663,8 @@ class ModelBase(ABC):
 			plotname = self._path+"/"+col
 			if(fextra != ""):
 				plotname += "_"+fextra
+			if self._extra_label != "":
+				plotname += "_"+self._extra_label
 			plotname += "."+self._form
 			bins = np.linspace(data.min(), data.max(), 50)
 			ns, bins, _ = plt.hist(data,label=label,log=True,bins=bins,histtype=u'step')
@@ -632,6 +678,8 @@ class ModelBase(ABC):
 			plotname = self._path+"/"+col
 			if(fextra != ""):
 				plotname += "_"+fextra
+			if self._extra_label != "":
+				plotname += "_"+self._extra_label
 			plotname += "."+self._form
 		
 			histmin = []
@@ -680,7 +728,7 @@ class ModelBase(ABC):
 			if labels == [4,6]:
 				#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
 				pos_label = 0
-			self.VizROC(ytrue, ypred,class1name="gogo",class2name="non iso bkg",pos_label=pos_label,fextra=fextra, fpr_threshs = fpr_threshs)
+			self.VizROC(ytrue, ypred,sigclassname="gogo",bkgclassname="non iso bkg",pos_label=pos_label,fextra=fextra, fpr_threshs = fpr_threshs)
 
 		if len(energy) > 0:
 			#print("# energies",len(energy),"# x",len(x),"# ytrue",len(ytrue),"# ypred",len(ypred))
@@ -694,13 +742,6 @@ class ModelBase(ABC):
 		#	self.VizMulticlassROC(y, ypred,-1,False,fextra)
 		#	self.VizMulticlassROC(y, ypred,-1,True,fextra)
 		#self.VizImportance()
-
-	def SaveModelArch(self, fname):
-		arch = self._model.to_json()
-		fname += ".json"
-		with open(fname,'w') as arch_file:
-			arch_file.write(arch)
-		print("Saved model architecture to",fname)
 
 	def GetModel(self):
 		if self._model is None:
