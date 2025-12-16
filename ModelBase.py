@@ -79,7 +79,9 @@ class ModelBase(ABC):
 		plt.figure()
 		plt.plot(history.history['val_'+fname], label="val "+fname)
 		plt.plot(history.history[fname],label="train "+fname)
-		plt.title(self._name+"\n"+fname,fontsize=10)
+		plt.title(self._name+"\n"+fname,fontsize=16)
+		plt.xlabel("Epoch",fontsize=14)
+		plt.ylabel("Loss",fontsize=14)
 		plt.legend()
 		#check if output dir exists
 		print("Saving loss plot to",self._path+"/"+fname+"."+self._form)
@@ -129,6 +131,11 @@ class ModelBase(ABC):
 			self.FindDiscThresh(fpr_thresh, poscat, fpr, tpr, thresh)
 		if ret_fpr_thresh != -1:
 			ret_discr_thresh = self.FindDiscThresh(ret_fpr_thresh, poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.4,  poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.3,  poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.2,  poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.1,  poscat, fpr, tpr, thresh)
+			self.FindDiscThresh(0.05,  poscat, fpr, tpr, thresh)
 			self.FindDiscThresh(0.02,  poscat, fpr, tpr, thresh)
 			self.FindDiscThresh(0.01,  poscat, fpr, tpr, thresh)
 			self.FindDiscThresh(0.005, poscat, fpr, tpr, thresh)
@@ -173,8 +180,10 @@ class ModelBase(ABC):
 			ylabel="Signal efficiency",
 		)
 		ax.set_title(self._name+"\n"+sigclassname+" (sig) vs "+bkgclassname+" (bkg) ROC",fontsize=16)
-		ax.set_ylim([0.95, 1.0])
-		ax.set_xlim([1e-6,0.01])
+		#ax.set_ylim([0.95, 1.0])
+		#ax.set_xlim([1e-6,0.01])
+		ax.set_ylim([1e-6, 1.0])
+		ax.set_xlim([1e-6,1.0])
 		ax.grid()
 		if(labels != [""]):
 			ax.legend()
@@ -557,7 +566,7 @@ class ModelBase(ABC):
 			self.VizMulticlassROC(ytest, ypred,-1,zoom=True)
 		return discr_threshs
 	
-	def TestModel(self,batch_size=1,verb=1,validate_model = False, fpr_threshs = []):
+	def TestModel(self,batch_size=1,verb=1,validate_model = False, fpr_threshs = [], ret_fpr_thresh = 0.001):
 		self.LoadBestModel()
 		#save optimal model as .keras for frugally-deep
 		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
@@ -577,7 +586,6 @@ class ModelBase(ABC):
 		self._xtest_df = pd.concat([self._xtest_df, scores_df], axis=1,ignore_index=False) 
 
 		discr_threshs = []
-		fpr_thresh = 0.001
 	
 		#do preprocessing for energy-separated roc curves
 		energy_ranges = []
@@ -590,11 +598,11 @@ class ModelBase(ABC):
 				classes.append(self._catnames[key])
 			#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
 			pos_label = 1
-			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[1],bkgclassname=classes[0],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
+			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[1],bkgclassname=classes[0],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = ret_fpr_thresh)
 			discr_threshs.append(discr_thresh)
 			#do for phys bkg/iso bkg too
 			pos_label = 0
-			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[0],bkgclassname=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = fpr_thresh)
+			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[0],bkgclassname=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = ret_fpr_thresh)
 			#do energy breakdown
 			if(self._xtest_energy is not None):
 				self.TestModel_EnergySplit(self._xtest,self._xtest_energy,self._ytest_energy,ypred,pos_label,batch_size=batch_size,verb=verb)
@@ -610,6 +618,7 @@ class ModelBase(ABC):
 			self.VizMulticlassROC(self._ytest, ypred,-1)
 			self.VizMulticlassROC(self._ytest, ypred,-1,zoom=True)
 		return discr_threshs
+	'''
 	#external_class is the class you want to use ncat is the cat # you want to replace
 	def ReplaceClass(self, external_class, ncat, cols, catnames, nsamp = -1, fextra=""):
 		df2 = pd.DataFrame(data=self._scaler.inverse_transform(self._xtest),columns=cols) #remake dataframe with column names
@@ -656,7 +665,7 @@ class ModelBase(ABC):
 		self.MakeHists(histdata,self._features,catnames,fextra) 
 		
 		return xnorm, ytrue, energy_samp
-
+	'''
 
 	#data is a 1D array
 	def MakeInputHist(self, data, col, label, fextra = ""):
