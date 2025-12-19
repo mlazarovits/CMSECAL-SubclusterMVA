@@ -202,7 +202,7 @@ class DataCleaner:
 		nonisobkg = len(data[data["label"] == 6])
 		tot = len(data)
 		if(isobkg > 0):
-			print(" ",tot, ("isobkg: "+str(isobkg)+" {:.2f}%, nonisobkg: "+str(nonisobkg)+" {:.2f}%").format(phys/tot,spike/tot,BH/tot))
+			print(" ",tot, ("isobkg: "+str(isobkg)+" {:.2f}%, nonisobkg: "+str(nonisobkg)+" {:.2f}%").format(isobkg/tot,nonisobkg/tot))
 	
 	#keep rows with values in col > val
 	def ApplyColCut(self, col, val, indata = None):
