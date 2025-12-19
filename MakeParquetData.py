@@ -26,53 +26,55 @@ def make_sms_samples_photons():
 
 def main(args):
 	objType = "CMS"
-	reader_train = TTreeReader(args.obj, objType)
-	reader_test = TTreeReader(args.obj, objType,"test")
 	step_size = 10000
-	file = ""
+	files = []
 	sample = ""
+	label = -999
+	odir = ""
 	if args.proc == "EGamma" and args.era == "C":
 		if args.year == "2018":
-			file = "root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p3_noIso_GJetsCR_EGamma_R18_InvMetPho30_NoSV_v31_EGamma_AOD_Run2018C.root"
+			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p3_noIso_GJetsCR_EGamma_R18_InvMetPho30_NoSV_v31_EGamma_AOD_Run2018C.root"]
 			sample = "EGamma18_RunC"
+			odir = "/"+sample
 		else:
 			print("Process and year not found")
 			exit()
 	if args.proc == "JetHT" and args.era == "C":
 		if args.year == "2018":
-			file = "root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p3_noIso_diJetsCR_JetHT_R18_InvMET100_nolumimask_v31_JetHT_AOD_Run2018C-15Feb2022_UL2018-v1.root"
+			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p3_noIso_diJetsCR_JetHT_R18_InvMET100_nolumimask_v31_JetHT_AOD_Run2018C-15Feb2022_UL2018-v1.root"]
 			sample = "JetHT18_RunC"
+			odir = "/"+sample
 		else:
 			print("Process and year not found")
 			exit()
+	if args.proc == "GlGl":
+		files = make_sms_samples_photons()
+		sample = ""
+		if args.obj == "SC":
+			label = 1
+		if args.obj == "photon":
+			label = 4
+		odir = "/SMS_GlGl"
 	
-	if args.proc == "MET":
-		print("these samples haven't been set yet....")
-		exit()
-
+	reader_train = TTreeReader(args.obj, objType)
+	reader_test = TTreeReader(args.obj, objType,"test/"+odir)
 	if args.test:
 		reader = reader_test
 	else:
 		reader = reader_train
+	if args.proc == "MET":
+		print("these samples haven't been set yet....")
+		exit()
 
-	labelas = -999
-	if args.proc == "GlGl":
-		labelas = 1
+
 	if args.obj == "SC":
 	#("root://cmseos.fnal.gov//store/user/mlazarov/LLPMVA_TrainingSamples/LLPSkims/SMS_Sig_SVIPM100_v31_SMS-GlGlZ_AODSIM_mGl-1500_mN2-500_mN1-100-ct0p1_superclusters_defaultv9p2.root","",step_size=10000,maxnchunk=-1,debug=False,labelas=1)
-		debug = args.debug
-		if args.proc == "GlGl":
-			labelas = 1
-		reader.ProcessFileCNN(file,sample,step_size=10000,chunkrange = [int(args.chunkFirst), int(args.chunkLast)],labelas=labelas)
+		for file in files:
+			reader.ProcessFileCNN(file,sample,step_size=10000,chunkrange = [int(args.chunkFirst), int(args.chunkLast)],labelas=label)
 	if args.obj == "photon":
 	#("root://cmseos.fnal.gov//store/user/mlazarov/LLPMVA_TrainingSamples/LLPSkims/SMS_Sig_SVIPM100_v31_SMS-GlGlZ_AODSIM_mGl-1500_mN2-500_mN1-100-ct0p1_superclusters_defaultv9p2.root","",step_size=10000,maxnchunk=-1,debug=False,labelas=1)
-		if args.proc == "GlGl":
-			labelas = 4
-			files = make_sms_samples_photons()
-			sample = ""
-			for file in files:
-				reader.ProcessFileDNN(file,sample,step_size=10000,chunkrange = [int(args.chunkFirst), int(args.chunkLast)],labelas=labelas)
-
+		for file in files:
+			reader.ProcessFileDNN(file,sample,step_size=10000,chunkrange = [int(args.chunkFirst), int(args.chunkLast)],labelas=label)
 
 
 if __name__ == "__main__":
