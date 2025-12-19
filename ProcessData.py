@@ -28,7 +28,7 @@ class DataCleaner:
 		if len(subdirs) < 1: 
 			print("reading parquet files in",self._output_parquet_data)
 			if debug:
-				print("Debug mode")
+				print("Debug mode - if reading from a testdir, chunk_00000 might not exist (skipping if this is in training data)")
 				parquet_files = self._output_parquet_data+"chunk_00000_sample_*.parquet"
 			else:
 				parquet_files = self._output_parquet_data+"*.parquet"
@@ -80,7 +80,6 @@ class DataCleaner:
 			nrows = ddf.shape[0].compute()  # works for Dask
 			print("Cleaning data", nrows, self._obj+"s","initially")
 			self.PrintStatsDask(ddf)
-				
 		#  Remove invalid labels (lazy, memory-efficient)
 		ddf = ddf.query("label != -1 and label != -999")
 		if self._printstats:
