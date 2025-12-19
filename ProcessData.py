@@ -350,7 +350,6 @@ class DataCleaner:
 				continue
 			newcolname = col[:col.find("Var")]+"Sig_"+self._tag
 			self._data[newcolname] = np.sqrt(self._data[col])
-		print("make sigmas - all cols",self._data.columns)
 	
 	def SetFeatureToVal(self, feature, val):
 		self._data[feature] = val
