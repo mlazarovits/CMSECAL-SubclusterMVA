@@ -3,7 +3,7 @@ from keras import layers, metrics, Input, Model, activations
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import normalize, MinMaxScaler, OneHotEncoder
+from sklearn.preprocessing import normalize, MinMaxScaler, LabelBinarizer 
 import os
 import subprocess
 import numpy as np
@@ -11,6 +11,7 @@ import pandas as pd
 
 class DeepNeuralNetwork(ModelBase):
 	def __init__(self):
+		super().__init__()
 		self._inputShape = None
 		self._nNodes = None
 		self._xtrain = None
@@ -30,9 +31,9 @@ class DeepNeuralNetwork(ModelBase):
 		self._lb = None
 		self._scaler = None
 		self._inputHists = None
-		super().__init__()
 
-	def __init__(self, data, nNodes, cols, catnames, catcolors, name = "model"):
+	def __init__(self, data, nNodes, cols, catnames, catcolors, name = "model", extra = ""):
+		super().__init__()
 		self._bestModel = None
 		self._lowestValLoss = 999
 		self._form = "pdf"
@@ -41,12 +42,18 @@ class DeepNeuralNetwork(ModelBase):
 		self._catnames = catnames 
 		self._catcolors = catcolors
 		self._inputHists = []
+		self._extra_label = extra
 		if not os.path.exists(self._path):
 			os.mkdir(self._path)
+		self._discr_info = self._path+"/discr_info"
+		if self._extra_label != "":
+			self._discr_info += "_"+self._extra_label
+		self._discr_info += ".txt"
+		with open(self._discr_info, "w") as f:
+			f.write("Network: "+self._name)
 		#a list of ints that defines the nodes for each dense layer (obviously len(nNodes) == # layers
 		self._nNodes = nNodes
 	
-		self._dropcols = ["sample","event","object","label","Energy"]
 		self._xtrain = None
 		self._ytrain = None
 		self._wtrain = None
@@ -59,76 +66,62 @@ class DeepNeuralNetwork(ModelBase):
 		self._ytest_energy = None 
 		rand = 43 #change to random number to randomize
 		#fir onehot enocoder
-		self._lb = OneHotEncoder(sparse_output=False)
-		labels = data["label"].to_numpy()
-		labels = labels.reshape(-1,1)
-		self._lb.fit(labels)
-		self._features = [i for i in cols if i not in self._dropcols] 
-		y = self.StripLabels(data)
-		x, w, energy = self.ProcessData(data)
-		#normalize data
-		self._scaler = MinMaxScaler()
-		self._scaler.fit(x)
-		x = self._scaler.transform(x)
-		#print("norm",x[:5],max(x[:,0]))
-		#80/20 train/test split
-		#if weights have been specified
-		if(len(w) > 0):
-			self._xtrain, self._xtest, self._ytrain, self._ytest, self._wtrain, self._wtest = train_test_split(data,y,w,test_size=0.2,random_state=rand)
-		else:
-			self._xtrain, self._xtest, self._ytrain, self._ytest = train_test_split(data,y,test_size=0.2,random_state=rand)
-		if(len(energy) > 0):
-			self._xtrain_energy, self._xtest_energy, self._ytrain_energy, self._ytest_energy = train_test_split(energy, y, test_size = 0.2, random_state = rand)
-		self._ytrain = np.asarray([ np.asarray(i) for i in self._ytrain])
+		self._features = cols 
+		if data is not None:
+			x, y = self.StripLabels(data)
+			#80/20 train/test split
+			#if weights have been specified
+			#if(len(w) > 0):
+			#	self._xtrain_df, self._xtest_df, self._ytrain, self._ytest, self._wtrain, self._wtest = train_test_split(x,y,w,test_size=0.2,random_state=rand)
+			#else:
+			#samples are dataframes
+			self._xtrain_df, self._xtest_df, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
+			test_sample = self._xtest_df["sample"].to_numpy()
+			#flatten
+			self._ytrain = self._ytrain.flatten() 
+			labels = self._lb.inverse_transform(self._ytrain)
+			self._xtrain_df['label'] = labels
+			labels = self._lb.inverse_transform(self._ytest)
+			self._xtest_df['label'] = labels
 		
-		#make hists of training data
-		indata = pd.DataFrame(data=self._scaler.inverse_transform(self._xtrain),columns=self._features)
-		indata['label'] = self._lb.inverse_transform(self._ytrain)
-		self.MakeHists(indata,self._features,catnames) 
 	
-		#super().__init__()
+			self._xtrain = self.MakeSamples(self._xtrain_df)
+			self._xtest = self.MakeSamples(self._xtest_df)
+		else:
+			self._xtrain_df = None
+			self._xtest_df = None
+			self._xtrain = None
+			self._xtest = None
+			self._ytrain = None
+			self._ytest = None
+		
+
+
+	def VizInputs(self):	
+		self.MakeHists(self._xtrain_df,self._features,self._catnames) 
 
 	def StripLabels(self, indata):
-		labels = indata["label"].to_numpy()
-		labels = labels.reshape(-1,1)
+		self._lb = LabelBinarizer()
+		labels = indata["label"].to_numpy().reshape(-1,1)
 		#print("labels",labels)
-		y = self._lb.transform(labels)
-		indata.drop("label",axis=1,inplace=True)
-		return y
+		y = self._lb.fit_transform(labels)
+		x = indata.drop("label",axis=1)
+		return x, y
 		
 
 	def MakeSamples(self, indata):
-		#remove dropcols from cols to pass to hist maker
-		dropcols = [] 
-		#print("features",self._features)	
-		#print("data",data.shape)	
-
-		#print("labels",np.unique(labels),"transformed labels",y,"catnames",self._catnames,"classes",self._lb.categories_)
-	
-		#extract inputs and labels, remove unnecessary columns
-		#drop event + subcl cols
-		energy = np.array([])
-		if "Energy" in indata.columns:
-			dropcols.append("Energy")
-			energy = indata["Energy"].to_numpy()
-			indata = indata.drop("Energy",axis=1)
-			
-		weights = np.array([])
-		if("weight" in indata.columns):
-			weights = indata["weight"].to_numpy()
-			dropcols.append("weight")
-			indata = indata.drop("weight",axis=1)
-
-		indata = indata[self._features] 
-		x = indata.to_numpy()
-		#print("x",x.shape,x[0],"y",y[0],"indata[labels]",labels[0])	
-		return x, weights, energy
-
+		x = indata[self._features]
+		#normalize data
+		scaler = MinMaxScaler()
+		x_norm = scaler.fit_transform(x)
+		return x_norm
 
 
 	#fully connected network
 	def BuildModel(self):
-		input_layer = Input(shape=(self._xtrain.shape[1],))
+		#print("ytrain",self._ytrain[0])
+		print("_xtest",self._xtest[0],"shape",self._xtest[0].shape)
+		input_layer = Input(shape=self._xtest[0].shape)
 		#reLu activation at internal layers
 		dense_layers = [layers.Dense(n,name="dense_layer"+str(i),activation=activations.relu) for i, n in enumerate(self._nNodes)]
 		x = dense_layers[0](input_layer)
@@ -136,7 +129,7 @@ class DeepNeuralNetwork(ModelBase):
 			x = d(x)
 
 		#sigmoid(binary)/softmax(multiclass) activation at the output layer to have interpretable probabilities
-		output_layer = layers.Dense(len(self._ytrain[0]),activation=activations.softmax,name="output")
+		output_layer = layers.Dense(1,activation=activations.sigmoid,name="output")
 		
 		x = output_layer(x) 
 		self._model = Model(inputs = input_layer, outputs = x, name = self._name)
@@ -147,44 +140,64 @@ class DeepNeuralNetwork(ModelBase):
 	def CompileModel(self):
 		self._model.compile(
 			optimizer = 'adam',
-			loss = 'categorical_crossentropy',
+			loss = 'binary_crossentropy',
 			metrics = ['accuracy','AUC']
 		)
 
+	def MakePlots(self):
+		self.VizSamples(self._xtest, self._ytest,"Training Samples")
+	
+	#data is a 1D array
+	def MakeInputHist(self, data, col, label, fextra = ""):
+		plotname = self._path+"/"+col
+		if(fextra != ""):
+			plotname += "_"+fextra
+		if self._extra_label != "":
+			plotname += "_"+self._extra_label
+		plotname += "."+self._form
+		bins = np.linspace(data.min(), data.max(), 50)
+		ns, bins, _ = plt.hist(data,label=label,log=True,bins=bins,histtype=u'step')
+		plt.title(col)
+		plt.legend()
+		print("Saving "+col+" "+label+" plot to",plotname)
+		plt.savefig(plotname,format=self._form)
+		plt.close()		
 
-	def VizSamples(self):
-		labels = self._lb.categories_[0]
-		all_labels = self._lb.inverse_transform(self._ytrain)
-		inputs = [[[] for l in labels] for f in self._features]
-		weights = [[] for l in labels]
-		xtrain = self._scaler.inverse_transform(self._xtrain)
-		for i, f in enumerate(inputs):
-			self._inputHists.append([])
-			plotname = self._path+"/"+self._features[i]+"."+self._form
-			bins = np.linspace(xtrain[:,i].min(), xtrain[:,i].max(), 50)
-			for j, x in enumerate(xtrain):
-				#this sample needs to be put in j == label[k]
-				lidx = np.flatnonzero(labels == all_labels[j])[0]
-				inputs[i][lidx].append(x[i])
-				if(i == 0 and self._wtrain is not None):
-					weights[lidx].append(self._wtrain[j])
-			for j, l in enumerate(labels):
-				if(self._wtrain is not None):
-					ns, bins, _ = plt.hist(inputs[i][j],label=self._catnames[l],log=True,bins=bins,histtype=u'step',weights=weights[j])
-				else:
-					ns, bins, _ = plt.hist(inputs[i][j],label=self._catnames[l],log=True,bins=bins,histtype=u'step')
-				#self._inputHists[feature][label][ns, bins][bin #]
-				bindict = {}
-				bindict["ns"] = ns
-				bindict["bins"] = bins
-				self._inputHists[i].append(bindict)
-			if os.path.exists(self._path+"/"+self._features[i]+"."+self._form): #need to still create the hists for _inputHists closure test
-				continue
-			plt.title(self._features[i])
-			plt.legend()
-			print("Saving "+self._features[i]+" plot to",plotname)
-			plt.savefig(plotname,format=self._form)
-			plt.close()		
+	def MakeMultiInputHist(self, data, col, catnames, fextra = ""):
+		plotname = self._path+"/"+col
+		if(fextra != ""):
+			plotname += "_"+fextra
+		if self._extra_label != "":
+			plotname += "_"+self._extra_label
+		plotname += "."+self._form
+		
+		histmin = []
+		histmax = []
+		#print("catnames",catnames)
+		for j, l in enumerate(catnames.keys()):
+			mask = data['label'] == l
+			histdata = data[mask][col]
+			histmin.append(histdata.min())
+			histmax.append(histdata.max())
+		bins = np.linspace(min(histmin), max(histmax), 50)
+		for j, l in enumerate(catnames.keys()):
+			mask = data['label'] == l
+			histdata = data[mask][col].to_numpy()
+			ns, bins, _ = plt.hist(histdata,label=catnames[l],log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
+		plt.title(col)
+		plt.legend()
+		print("Saving "+col+" plot to",plotname)
+		plt.savefig(plotname,format=self._form)
+		plt.close()		
+		
+	
+	def VizSamples(self, indata, inlabels = None, fextra = ""):
+		cols = data.columns
+		if 'label' not in cols and inlabels is not None:
+			data['label'] = inlabels
+		for i, f in enumerate(cols):
+			#select column f with rows with label l
+			self.MakeMultiInputHist(data,f,extra)
 
 	#closure test - remake distributions of input features with weights applied to training samples
 	def ValidateModel(self):

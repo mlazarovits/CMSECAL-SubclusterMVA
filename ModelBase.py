@@ -74,7 +74,6 @@ class ModelBase(ABC):
 		self._xtest_df["label"] = ylabels
 		if label != "":
 			self._extra_label = label
-
 	def VizMetric(self, history, fname):
 		plt.figure()
 		plt.plot(history.history['val_'+fname], label="val "+fname)
@@ -459,7 +458,7 @@ class ModelBase(ABC):
 				f.write(sample+" ")
 		self._model.load_weights(files[min(keys)])	
 
-	def TestModel_EnergySplit(self,x,energy,ytrue,ypred,pos_label,batch_size=1,verb=1,fextra=""):
+	def EnergySplitROC(self,x,energy,ytrue,ypred,pos_label,batch_size=1,verb=1,fextra=""):
 		#do preprocessing for energy-separated roc curves
 		energy_ranges = []
 		nclasses = len(ypred[0])
@@ -604,8 +603,9 @@ class ModelBase(ABC):
 			pos_label = 0
 			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[0],bkgclassname=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = ret_fpr_thresh)
 			#do energy breakdown
+			#TODO - give self._xtest_df (which should include energy)
 			if(self._xtest_energy is not None):
-				self.TestModel_EnergySplit(self._xtest,self._xtest_energy,self._ytest_energy,ypred,pos_label,batch_size=batch_size,verb=verb)
+				self.EnergySplitROC(self._xtest,self._xtest_energy,self._ytest_energy,ypred,pos_label,batch_size=batch_size,verb=verb)
 		else:  #multiclass
 			#plot physics bkg vs other bkgs
 			thresh_class1 = self.VizMulticlassROC(self._ytest, ypred,1,zoom=True, fpr_thresh = fpr_thresh)
@@ -667,90 +667,8 @@ class ModelBase(ABC):
 		return xnorm, ytrue, energy_samp
 	'''
 
-	#data is a 1D array
-	def MakeInputHist(self, data, col, label, fextra = ""):
-			plotname = self._path+"/"+col
-			if(fextra != ""):
-				plotname += "_"+fextra
-			if self._extra_label != "":
-				plotname += "_"+self._extra_label
-			plotname += "."+self._form
-			bins = np.linspace(data.min(), data.max(), 50)
-			ns, bins, _ = plt.hist(data,label=label,log=True,bins=bins,histtype=u'step')
-			plt.title(col)
-			plt.legend()
-			print("Saving "+col+" "+label+" plot to",plotname)
-			plt.savefig(plotname,format=self._form)
-			plt.close()		
-
-	def MakeMultiInputHist(self, data, col, catnames, fextra = ""):
-			plotname = self._path+"/"+col
-			if(fextra != ""):
-				plotname += "_"+fextra
-			if self._extra_label != "":
-				plotname += "_"+self._extra_label
-			plotname += "."+self._form
-		
-			histmin = []
-			histmax = []
-			#print("catnames",catnames)
-			for j, l in enumerate(catnames.keys()):
-				mask = data['label'] == l
-				histdata = data[mask][col]
-				histmin.append(histdata.min())
-				histmax.append(histdata.max())
-			bins = np.linspace(min(histmin), max(histmax), 50)
-			for j, l in enumerate(catnames.keys()):
-				mask = data['label'] == l
-				histdata = data[mask][col].to_numpy()
-				ns, bins, _ = plt.hist(histdata,label=catnames[l],log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
-			plt.title(col)
-			plt.legend()
-			print("Saving "+col+" plot to",plotname)
-			plt.savefig(plotname,format=self._form)
-			plt.close()		
-		
-	
-	def MakeHists(self, data, cols, catnames, fextra = ""):
-		for i, f in enumerate(cols):
-			#select column f with rows with label l
-			self.MakeMultiInputHist(data,f,catnames,fextra)
 
 
-	def TestModel_ExternalSignal(self,external_sig, cols,batch_size=1,verb=1,fpr_threshs = []):
-		fextra = "testSet_SMS_as_signal"
-		catnamesmap = {4 : "gogo", 6 : self._catnames[6]}
-		x, ytrue, energy = self.ReplaceClass(external_sig,4,self._features,catnamesmap, -1,fextra)
-		
-		#done in ReplaceClass -> ProcessData
-		if(len(energy) > 0):
-			energy = np.array([[i] for i in energy])
-		#normalize data for prediction
-		x = self._scaler.transform(x)
-		ypred = self._model.predict(x,batch_size=1,verbose=verb)
-		if len(self._ytest[0]) == 2:
-			labels = []
-			classes = []
-			for key in self._catnames.keys():
-				labels.append(key)
-				classes.append(self._catnames[key])
-			if labels == [4,6]:
-				#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
-				pos_label = 0
-			self.VizROC(ytrue, ypred,sigclassname="gogo",bkgclassname="non iso bkg",pos_label=pos_label,fextra=fextra, fpr_threshs = fpr_threshs)
-
-		if len(energy) > 0:
-			#print("# energies",len(energy),"# x",len(x),"# ytrue",len(ytrue),"# ypred",len(ypred))
-			energy = np.array([i[0] for i in energy])
-			self.TestModel_EnergySplit(x,energy,ytrue,ypred,pos_label=pos_label,fextra=fextra)
-
-		#else:  #multiclass
-		#	#plot physics bkg vs other bkgs
-		#	self.VizMulticlassROC(y, ypred,1,False,fextra)
-		#	#plot one-v-one for each class
-		#	self.VizMulticlassROC(y, ypred,-1,False,fextra)
-		#	self.VizMulticlassROC(y, ypred,-1,True,fextra)
-		#self.VizImportance()
 
 	def GetModel(self):
 		if self._model is None:
