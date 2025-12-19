@@ -128,10 +128,10 @@ class TTreeReader(FileReader):
 			sample = sample[:sample.find("_photons")]
 		if sample.find("-") != -1:
 			sample = sample.replace("-","_")
-		self.ProcessDNNBranches(file,sample,step_size,chunkrange=chunkrange)
+		self.ProcessDNNBranches(file,sample,step_size,debug=debug,labelas=labelas,chunkrange=chunkrange)
 		print("Wrote parquet chunks to",self._output_parquet_data)
 	
-	def ProcessDNNBranches(self, file, sample, step_size=10000, chunkrange=[-1,-1], debug = False):
+	def ProcessDNNBranches(self, file, sample, step_size=10000, debug=False, labelas=-999, recreate_files = False, chunkrange=[-1,-1]):
 		branches = [
 			f"Photon_EtaVar_{self._tag}",
 			f"Photon_PhiVar_{self._tag}",
@@ -189,11 +189,15 @@ class TTreeReader(FileReader):
 
 	
 			pho_counts = ak.num(chunk[f"Photon_trueLabel_{self._tag}"])
+			truelabel = ak.to_numpy(ak.flatten(chunk[f"Photon_trueLabel_{self._tag}"],axis=1))
+			if labelas != -999:
+				truelabel = pa.array([labelas] * sum(pho_counts))
+			pho_counts = ak.num(chunk[f"Photon_trueLabel_{self._tag}"])
 			#write to parquet table directly
 			table = pa.table({
 				"event_idx": np.repeat(np.arange(len(chunk)), pho_counts),
 				"pho_idx": ak.to_numpy(ak.flatten(ak.local_index(chunk[f"Photon_trueLabel_{self._tag}"]))),
-				f"Photon_trueLabel_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_trueLabel_{self._tag}"],axis=1)),
+				f"Photon_trueLabel_{self._tag}" : truelabel,
 				f"Photon_EtaVar_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_EtaVar_{self._tag}"],axis=1)),
 				f"Photon_PhiVar_{self._tag}" : ak.to_numpy(ak.flatten(chunk[f"Photon_PhiVar_{self._tag}"],axis=1)),
 				f"Photon_EtaPhiCov_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_EtaPhiCov_{self._tag}"],axis=1)),
