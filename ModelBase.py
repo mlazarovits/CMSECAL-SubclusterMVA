@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 #from tensorflow.keras import layers, metrics, Input, Model, activations, callbacks
 from sklearn.metrics import RocCurveDisplay, roc_curve
 from keras import callbacks
+from keras.models import load_model
 import glob
 from itertools import combinations
 import numpy as np
@@ -175,8 +176,8 @@ class ModelBase(ABC):
 				color=col,
 			)
 		ax.set(
-			xlabel="Background mistag",
-			ylabel="Signal efficiency",
+			xlabel="Background class efficiency (FPR)",#"Background mistag",
+			ylabel="Signal class efficiency (TPR)",#"Signal efficiency",
 		)
 		ax.set_title(self._name+"\n"+sigclassname+" (sig) vs "+bkgclassname+" (bkg) ROC",fontsize=16)
 		#ax.set_ylim([0.95, 1.0])
@@ -456,9 +457,10 @@ class ModelBase(ABC):
 			samples = self._xtest_df["sample"].unique()
 			for sample in samples:
 				f.write(sample+" ")
-		self._model.load_weights(files[min(keys)])	
+		#self._model.load_weights(files[min(keys)])	
+		self._model = load_model(files[min(keys)])	
 
-	def EnergySplitROC(self,x,energy,ytrue,ypred,pos_label,batch_size=1,verb=1,fextra=""):
+	def EnergySplitROC(self,ytrue,ypred,pos_label,batch_size=1,verb=1,fextra=""):
 		#do preprocessing for energy-separated roc curves
 		energy_ranges = []
 		nclasses = len(ypred[0])
@@ -466,10 +468,11 @@ class ModelBase(ABC):
 		#TODO: change to color gradient (low to high energy)
 		colors = ["blue","green","purple","pink"]
 		print("Creating energy-separate ROC curves with energy bins",energy_ranges)
+		'''
 		#create dataframe of xtest, ytrue, ypred
 		df_e = pd.DataFrame()
 		#print("energy",energy[0],"ypred",ypred[0],'ytest',ytrue[0])
-		df_e['energy'] = energy 
+		df_e['Photon_Energy_CMS'] = energy 
 		df_e['ypred'] = ypred.tolist()
 		df_e['ytrue'] = ytrue.tolist()
 		#print("energy split - labels",np.unique(df_e['ytrue'].to_numpy()))
@@ -506,8 +509,8 @@ class ModelBase(ABC):
 		if fextra != "":
 			extralab += "_"+fextra
 		self.PlotROCs(fprs,tprs,labels,colors,extralab)
-
-
+	'''
+	'''
 	def MakeTestPdDataframe(self, ypred):
 		#add each score in ypred to xtest df as separate columns for plotting later
 		cols = [f"score_{val[1]}" for val in self._test_gen.GetLabels()]
@@ -564,7 +567,7 @@ class ModelBase(ABC):
 			self.VizMulticlassROC(ytest, ypred,-1)
 			self.VizMulticlassROC(ytest, ypred,-1,zoom=True)
 		return discr_threshs
-	
+	'''	
 	def TestModel(self,batch_size=1,verb=1,validate_model = False, fpr_threshs = [], ret_fpr_thresh = 0.001):
 		self.LoadBestModel()
 		#save optimal model as .keras for frugally-deep
@@ -604,8 +607,7 @@ class ModelBase(ABC):
 			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[0],bkgclassname=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = ret_fpr_thresh)
 			#do energy breakdown
 			#TODO - give self._xtest_df (which should include energy)
-			if(self._xtest_energy is not None):
-				self.EnergySplitROC(self._xtest,self._xtest_energy,self._ytest_energy,ypred,pos_label,batch_size=batch_size,verb=verb)
+			#self.EnergySplitROC(self._xtest_df,self._ytest_df,ypred,pos_label,batch_size=batch_size,verb=verb)
 		else:  #multiclass
 			#plot physics bkg vs other bkgs
 			thresh_class1 = self.VizMulticlassROC(self._ytest, ypred,1,zoom=True, fpr_thresh = fpr_thresh)
