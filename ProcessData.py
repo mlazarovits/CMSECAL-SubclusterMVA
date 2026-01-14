@@ -11,6 +11,7 @@ import pyarrow.dataset as ds
 import dask.dataframe as dd
 import os
 import time
+from pathlib import Path
 
 class DataCleaner:
 	def __init__(self, parquet_path, obj, objtype, printStats = True):
@@ -19,6 +20,22 @@ class DataCleaner:
 		self._output_parquet_data = parquet_path
 		self._obj = obj
 		self._tag = objtype
+
+	def GetFirstFileInDir(self, directory_path):
+		# Get all entries in the directory
+		entries = os.listdir(directory_path)
+		
+		# Filter for files only and create full paths
+		files = [os.path.join(directory_path, entry) for entry in entries if os.path.isfile(os.path.join(directory_path, entry))]
+		
+		# Sort the files (e.g., alphabetically by name)
+		files.sort()
+		
+		# Return the first file or None if no files are found
+		if files:
+		    return files[0]
+		else:
+		    return None
 			
 	def GetDaskData(self, subdirs = [], blocksize = "100 MB", debug = False):
 		print("Reading from parquet files at",self._output_parquet_data,"into Dask df")
@@ -34,17 +51,31 @@ class DataCleaner:
 				parquet_files = self._output_parquet_data+"*.parquet"
 		else:
 			parquet_files = []
-			for subdir in subdirs:
+			for subdir_pairs in subdirs:
+				subdir = subdir_pairs[0]
+				file_range = subdir_pairs[1]
 				print("reading parquet files in",self._output_parquet_data+"/"+subdir)
 				if debug:
 					print("Debug mode")
-					if "SMS_GlGl" in subdir:
-						parquet_files.append(self._output_parquet_data+"/"+subdir+"/chunk_00000_*GlGl_mGl_1500_mN2_500_mN1_100*.parquet")
-					else:
-						parquet_files.append(self._output_parquet_data+"/"+subdir+"/chunk_00000_sample_*.parquet")	
+					file = self.GetFirstFileInDir(self._output_parquet_data+"/"+subdir)
+					if file is not None:
+						parquet_files.append(file)
 				else:
-					parquet_files.append(self._output_parquet_data+"/"+subdir+"/*.parquet")
-		print("parquet_files",parquet_files)	
+					#if "SMS_GlGl" in subdir:
+					#	parquet_files.append(self._output_parquet_data+"/"+subdir+"/chunk_*.parquet")
+					if file_range == "*":
+						parquet_files.append(self._output_parquet_data+"/"+subdir+"/chunk_*.parquet")
+						print("Running over all chunks in subdir",subdir)
+					else:
+						inclusions = np.arange(file_range[0],file_range[1],1)
+						files = [f"{self._output_parquet_data}/{subdir}/chunk_{i:05}_sample_*.parquet" for i in inclusions]
+						for file in files:
+							parquet_files.append(file)
+						print("Running over chunks",file_range[0],"to",file_range[1],"in subdir",subdir)
+		if(len(parquet_files) == len(subdirs)):
+			print("parquet_files",parquet_files)	
+		else:
+			print("# parquet_files",len(parquet_files),"with at least 1 sample chunked")
 		ddf = dd.read_parquet(parquet_files,blocksize=blocksize)
 		t2 = time.perf_counter()
 		print("took",(t2-t1),"seconds to read data from parquet table, total # rows",ddf.shape[0].compute())
@@ -63,7 +94,7 @@ class DataCleaner:
 		self._printstats = p
 
 	#cleans data
-	def CleanDaskData(self, ddf, dropna = False):
+	def CleanDaskData(self, ddf, dropna = False, do_iso_presel = True):
 		print("cleaning dask data")
 		t1 = time.perf_counter()
 		"""
@@ -109,11 +140,25 @@ class DataCleaner:
 		if self._printstats:
 			print("Total after dropna:",ddf.shape[0].compute())
 			self.PrintStatsDask(ddf)
+
+		#do isolation preselection cut for photons only
+		#TODO - add pixel seed veto? need to rerun training samples...
+		if(do_iso_presel):
+			if "Photon_ecalRecHitSumEtConeDR04" in ddf.columns:
+				ddf = ddf.query("Photon_ecalRecHitSumEtConeDR04 < 10.0")
+			if "Photon_trkSumPtSolidConeDR04" in ddf.columns:
+				ddf = ddf.query("Photon_trkSumPtSolidConeDR04 < 6.0")
+			if "Photon_hadTowOverEM" in ddf.columns:
+				ddf = ddf.query("Photon_hadTowOverEM < 0.02")
+			print("Total after isolation preselection:",ddf.shape[0].compute())
+			self.PrintStatsDask(ddf)
 	
 		t2 = time.perf_counter()
 		print("took",(t2-t1),"seconds to clean dask data")
 		return ddf
 
+
+		
 
 	def ConvertToPandas(self, ddf):
 		self._data = ddf.compute() 
@@ -172,6 +217,7 @@ class DataCleaner:
 		self._data = ddf.compute()
 
 	def PrintStatsDask(self, ddf):
+		#TODO - add efficiency calculations from 
 		phys = (ddf["label"] == 1).sum().compute()
 		if(phys > 0):
 			BH = (ddf["label"] == 2).sum().compute()
@@ -219,12 +265,6 @@ class DataCleaner:
 	def SelectClass(self,nclass,samp):
 		mask = (self._data["label"] == nclass) | (~self._data["sample"].str.contains(samp))
 		self._data = self._data[mask]
-		'''
-		#drop rows from all samps that are not nclass
-		self._data = self._data[~((self._data["sample"].isin(samps)) & (self._data["label"] != nclass))]
-		##drop rows for !samp that are nclass
-		self._data = self._data[~((self._data["label"] == nclass) & (~self._data["sample"].isin(samps)))]
-		'''	
 		if(self._printstats):
 		    print("after setting class",nclass,"to be only from",samp)
 		    self.PrintStats()
@@ -247,12 +287,10 @@ class DataCleaner:
 	
 		# total rows in this sample (lazy)
 		total = ddf_sample.shape[0].compute()
-	
 		if total <= nsamp:
 		    return ddf
 	
 		frac = nsamp / total
-	
 		sampled_subset = ddf_sample.sample(
 		    frac=frac,
 		    random_state=42
