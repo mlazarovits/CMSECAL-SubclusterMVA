@@ -19,7 +19,6 @@ class DeepNeuralNetwork(ModelBase):
 		self._wtrain = None
 		self._xtest = None
 		self._ytest = None
-		self._wtest = None
 		#plot format
 		self._form = "pdf"
 		self._path = "results/"
@@ -59,24 +58,18 @@ class DeepNeuralNetwork(ModelBase):
 		self._wtrain = None
 		self._xtest = None
 		self._ytest = None
-		self._wtest = None
-		self._xtrain_energy = None
-		self._xtest_energy = None
-		self._ytrain_energy = None
-		self._ytest_energy = None 
 		rand = 43 #change to random number to randomize
 		#fir onehot enocoder
 		self._features = cols 
 		if data is not None:
 			x, y = self.StripLabels(data)
 			#80/20 train/test split
-			#if weights have been specified
-			#if(len(w) > 0):
-			#	self._xtrain_df, self._xtest_df, self._ytrain, self._ytest, self._wtrain, self._wtest = train_test_split(x,y,w,test_size=0.2,random_state=rand)
-			#else:
 			#samples are dataframes
 			self._xtrain_df, self._xtest_df, self._ytrain, self._ytest = train_test_split(x,y,test_size=0.2,random_state=rand)
-			test_sample = self._xtest_df["sample"].to_numpy()
+			self._xtrain_df.reset_index()
+			self._xtest_df.reset_index()
+
+			#test_sample = self._xtest_df["sample"].to_numpy()
 			#flatten
 			self._ytrain = self._ytrain.flatten() 
 			labels = self._lb.inverse_transform(self._ytrain)
@@ -97,19 +90,30 @@ class DeepNeuralNetwork(ModelBase):
 		
 
 
-	def VizInputs(self):	
-		self.MakeHists(self._xtrain_df,self._features,self._catnames) 
+	def VizInputs(self):
+		indata = self._xtrain_df.drop(columns=["sample"])
+		cols = self._features
+		cols.append('label')
+		indata = indata[cols]
+		self.VizSamples(indata,"Training Samples") 
+
+	def VizTestSample(self):
+		indata = self._xtest_df.drop(columns=["sample"])	
+		cols = self._features
+		cols.append('label')
+		indata = indata[cols]
+		self.VizSamples(indata,"Test Samples") 
 
 	def StripLabels(self, indata):
 		self._lb = LabelBinarizer()
 		labels = indata["label"].to_numpy().reshape(-1,1)
-		#print("labels",labels)
 		y = self._lb.fit_transform(labels)
 		x = indata.drop("label",axis=1)
 		return x, y
 		
 
 	def MakeSamples(self, indata):
+		print("Samples are using features",self._features)
 		x = indata[self._features]
 		#normalize data
 		scaler = MinMaxScaler()
@@ -149,23 +153,28 @@ class DeepNeuralNetwork(ModelBase):
 	
 	#data is a 1D array
 	def MakeInputHist(self, data, col, label, fextra = ""):
+		scaler = MinMaxScaler()
+		data_norm = scaler.fit_transform(data)
+		histdata = data_norm[col]
 		plotname = self._path+"/"+col
 		if(fextra != ""):
+			fextra = fextra.replace(" ","_")
 			plotname += "_"+fextra
 		if self._extra_label != "":
 			plotname += "_"+self._extra_label
 		plotname += "."+self._form
-		bins = np.linspace(data.min(), data.max(), 50)
-		ns, bins, _ = plt.hist(data,label=label,log=True,bins=bins,histtype=u'step')
+		bins = np.linspace(histdata.min(), histdata.max(), 50)
+		ns, bins, _ = plt.hist(histdata,label=label,log=True,bins=bins,histtype=u'step')
 		plt.title(col)
 		plt.legend()
 		print("Saving "+col+" "+label+" plot to",plotname)
 		plt.savefig(plotname,format=self._form)
 		plt.close()		
 
-	def MakeMultiInputHist(self, data, col, catnames, fextra = ""):
+	def MakeMultiInputHist(self, indata, col, fextra = ""):
 		plotname = self._path+"/"+col
 		if(fextra != ""):
+			fextra = fextra.replace(" ","_")
 			plotname += "_"+fextra
 		if self._extra_label != "":
 			plotname += "_"+self._extra_label
@@ -173,17 +182,25 @@ class DeepNeuralNetwork(ModelBase):
 		
 		histmin = []
 		histmax = []
+		labels = indata['label'].to_numpy()
+		data = indata.drop(columns=['label'])
+		features = data.columns
+		#normalize per col
+		scaler = MinMaxScaler()
+		data_norm = scaler.fit_transform(data)
+		norm_pd = pd.DataFrame(data_norm,columns=features)
+		norm_pd['label'] = labels
 		#print("catnames",catnames)
-		for j, l in enumerate(catnames.keys()):
-			mask = data['label'] == l
-			histdata = data[mask][col]
+		for j, l in enumerate(self._catnames.keys()):
+			mask = norm_pd['label'] == l
+			histdata = norm_pd[mask][col]
 			histmin.append(histdata.min())
 			histmax.append(histdata.max())
 		bins = np.linspace(min(histmin), max(histmax), 50)
-		for j, l in enumerate(catnames.keys()):
-			mask = data['label'] == l
-			histdata = data[mask][col].to_numpy()
-			ns, bins, _ = plt.hist(histdata,label=catnames[l],log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
+		for j, l in enumerate(self._catnames.keys()):
+			mask = norm_pd['label'] == l
+			histdata = norm_pd[mask][col].to_numpy()
+			ns, bins, _ = plt.hist(histdata,label=self._catnames[l],log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
 		plt.title(col)
 		plt.legend()
 		print("Saving "+col+" plot to",plotname)
@@ -191,13 +208,15 @@ class DeepNeuralNetwork(ModelBase):
 		plt.close()		
 		
 	
-	def VizSamples(self, indata, inlabels = None, fextra = ""):
-		cols = data.columns
-		if 'label' not in cols and inlabels is not None:
-			data['label'] = inlabels
+	def VizSamples(self, indata, extra = ""):
+		cols = indata.columns
 		for i, f in enumerate(cols):
+			if f == "label":
+				continue
+			if 'idx' in f:
+				continue
 			#select column f with rows with label l
-			self.MakeMultiInputHist(data,f,extra)
+			self.MakeMultiInputHist(indata,f,extra)
 
 	#closure test - remake distributions of input features with weights applied to training samples
 	def ValidateModel(self):

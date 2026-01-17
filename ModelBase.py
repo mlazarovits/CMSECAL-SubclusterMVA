@@ -95,10 +95,10 @@ class ModelBase(ABC):
 		#vals = DeepExplainer(self._model, background).shap_values(self._xtrain[:nsamp])
 		#summary_plot(vals[0],self._xtrain[:nsamp],feature_names=self._features,show=False)
 		#print("Saving SHAP plot to",self._path+"/SHAPplot."+self._form)
-		#plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
+		FindDiscThresh#plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
 		#plt.close()
 
-	def FindDiscThresh(self, fpr_thresh, ncat, fpr_cat, tpr_cat, thresh_cat):
+	def FindDiscThresh(self, fpr_thresh, ncat, fpr_cat, tpr_cat, thresh_cat, extra = ""):
 		mindiff = 999
 		bestIdx = 0
 		for i, fpr in enumerate(fpr_cat):
@@ -113,7 +113,7 @@ class ModelBase(ABC):
 			f.write(discr_txt)
 		return thresh_cat[bestIdx]
 
-	def MakeROC(self, ytrue, ypred, pos_label=1, fpr_threshs = [], ret_fpr_thresh = -1):
+	def MakeROC(self, ytrue, ypred, pos_label=1, fpr_threshs = [], ret_fpr_thresh = -1, extra = ""):
 		print("pos_label",pos_label,"# ytrue",len(ytrue),"# ypred",len(ypred),"ytrue",ytrue[0],"ypred",ypred[0])
 		#need to process ytrue and ypred s.t. they are given to roc_curve as 1D arrays of assignment (ytrue - 0 or 1) and prediction (score of 'signal'/positive class)
 		ypred_1D = [ypred[y][pos_label] for y, _ in enumerate(ypred)]
@@ -121,12 +121,15 @@ class ModelBase(ABC):
 		#print("ytrue",ytrue[0],"ypred",ypred_1D[0],ypred.flatten()[0],ypred[0])
 		#dont need to give 'pos label' to roc_curve since those values have been selected above
 		fpr, tpr, thresh = roc_curve(ytrue.flatten(), ypred_1D,pos_label = pos_label)
-
 		ytrue_test = np.zeros(ytrue[0].shape)
 		#put in one-hot encoding
 		poscat = self._lb.inverse_transform(np.array(pos_label))[0]
 		print("poscat",poscat,"translates to label",poscat)
 		ret_discr_thresh = -1
+		with open(self._discr_info, "a") as f:
+			f.write("\n")
+			f.write(extra)
+		
 		for fpr_thresh in fpr_threshs:
 			self.FindDiscThresh(fpr_thresh, poscat, fpr, tpr, thresh)
 		if ret_fpr_thresh != -1:
@@ -203,7 +206,8 @@ class ModelBase(ABC):
 	#Caltech delayed photon analysis just plots fpr vs tpr for their DNN performance
 	#for multiclass ROC (one-vs-rest = sig-vs-rest)
 	def VizROC(self, ytrue, ypred, sigclassname = "sig", bkgclassname = "bkg", pos_label=1, fextra="", fpr_threshs = [], fpr_thresh = -1):
-		fpr, tpr, discr_thresh = self.MakeROC(ytrue, ypred, pos_label, fpr_threshs, fpr_thresh)
+		extratag = "sigClass is "+sigclassname+" bkgClass is "+bkgclassname
+		fpr, tpr, discr_thresh = self.MakeROC(ytrue, ypred, pos_label, fpr_threshs, fpr_thresh,extratag)
 		self.PlotROCs([fpr.tolist()], [tpr.tolist()], [""],["pink"], fextra, sigclassname, bkgclassname)
 		return discr_thresh
 	
@@ -460,56 +464,40 @@ class ModelBase(ABC):
 		#self._model.load_weights(files[min(keys)])	
 		self._model = load_model(files[min(keys)])	
 
-	def EnergySplitROC(self,ytrue,ypred,pos_label,batch_size=1,verb=1,fextra=""):
+	def EnergySplitROC(self, pos_label,fpr_threshes=[], fpr_thresh=-1, fextra=""):
 		#do preprocessing for energy-separated roc curves
-		energy_ranges = []
-		nclasses = len(ypred[0])
-		energy_ranges = [[30, 75],[75,150], [150, 200], [200]]
-		#TODO: change to color gradient (low to high energy)
-		colors = ["blue","green","purple","pink"]
-		print("Creating energy-separate ROC curves with energy bins",energy_ranges)
-		'''
-		#create dataframe of xtest, ytrue, ypred
-		df_e = pd.DataFrame()
-		#print("energy",energy[0],"ypred",ypred[0],'ytest',ytrue[0])
-		df_e['Photon_Energy_CMS'] = energy 
-		df_e['ypred'] = ypred.tolist()
-		df_e['ytrue'] = ytrue.tolist()
-		#print("energy split - labels",np.unique(df_e['ytrue'].to_numpy()))
-		mask_df_2 =df_e['ytrue'].apply(lambda x: x == [0, 1])
-		#do energy breakdown
-		fprs = []
-		tprs = []
-		labels = []
-		for idx, erange in enumerate(energy_ranges):
-			mask = None
-			label = "energy: ["
-			if(len(erange) > 1):
-				mask = (df_e['energy'] >= erange[0]) & (df_e['energy'] <= erange[1])
-				label += str(erange[0])+", "+str(erange[1])+"] GeV"
-			else:
-				mask = df_e['energy'] >= erange[0]
-				label += str(erange[0])+", inf) GeV"
-			if mask is None:
-				continue
-			df_mask = df_e[mask]
-			ytest = df_mask['ytrue'].to_numpy()
-			ytest = [np.array(i) for i in ytest]
-			ypred = df_mask['ypred'].to_numpy()
-			ypred = [np.array(i) for i in ypred]
-			#print("energy range",erange," - labels",np.unique(df_mask['ytrue'].to_numpy()))
-			#if no entries in energy range, skip
-			if(len(ytest) < 1):
-				continue
-			fpr, tpr = self.MakeROC(ytest, ypred,pos_label = pos_label)
-			labels.append(label)
-			fprs.append(fpr)
-			tprs.append(tpr)
-		extralab = "energySep"
+		colors = ["blue","green","purple","pink","orange"]
+		print("cols",self._xtest_df.columns)
+		energies = self._xtest_df['Photon_Energy_CMS'].to_numpy()
+		#bin energies such that each bin has even statistics
+		bins, edges = pd.qcut(self._xtest_df['Photon_Energy_CMS'],q=5,labels=False, retbins=True)
+		print("Creating energy-separate ROC curves with energy bins",edges,"for pos_label",pos_label)
+		#apply binning to df via another column
+		self._xtest_df["energy_bin"] = bins
+		print("bins",self._xtest_df["energy_bin"].unique(),"edges",edges)
+		ncat_score = int(self._lb.inverse_transform(np.array(pos_label))[0])
+		if ncat_score == 4:
+			bkgclass = 6
+		elif ncat_score == 6:
+			bkgclass = 4
+		else:
+			return
+		fprs, tprs, labels = [], [], []
+		extralab = "EnergySplit"
 		if fextra != "":
 			extralab += "_"+fextra
-		self.PlotROCs(fprs,tprs,labels,colors,extralab)
-	'''
+		for ibin in np.sort(bins.unique()):
+			print(f"for bin [{edges[ibin]}, {edges[ibin+1]}] GeV")
+			energy_slice = self._xtest_df[self._xtest_df["energy_bin"] == ibin]
+			ytrue = self._lb.transform(energy_slice['label'].to_numpy())
+			ypred = energy_slice["ypred_scores"].to_numpy()	
+			print("ypred",ypred[0],'ytrue',ytrue[0])
+			fpr, tpr, discr_thresh = self.MakeROC(ytrue, ypred, pos_label, fpr_threshs=fpr_threshes, ret_fpr_thresh=fpr_thresh, extra=f"energy bin [{edges[ibin]:.2f}, {edges[ibin+1]:.2f}] GeV")
+			fprs.append(fpr)
+			tprs.append(tpr)
+			labels.append(f"[{edges[ibin]:.2f}, {edges[ibin+1]:.2f}] GeV")
+		print("ncat_score",ncat_score,"bkgclass",bkgclass)
+		self.PlotROCs(fprs,tprs,labels,colors,extralab,sigclassname=self._catnames[ncat_score],bkgclassname=self._catnames[bkgclass])
 	'''
 	def MakeTestPdDataframe(self, ypred):
 		#add each score in ypred to xtest df as separate columns for plotting later
@@ -578,7 +566,7 @@ class ModelBase(ABC):
 		print("labels",labels_set)
 		cols = [f"score_{int(val[1])}" for val in enumerate(labels_set)]
 		if len(labels_set) < 3: #add on 1-other class score for two columns
-			#'signal' is class 1 -> given from network
+			#'signal' is class 1 -> given from network (maps to lowest val cat number (ie 1 or 4))
 			ypred = np.column_stack([1-ypred, ypred])
 		print("ypred",ypred[0],"cols",cols)
 		scores_df = pd.DataFrame(ypred, columns=cols)
@@ -586,11 +574,28 @@ class ModelBase(ABC):
 		self._xtest_df = self._xtest_df.reset_index(drop=True)
 		scores_df = scores_df.reset_index(drop=True)
 		self._xtest_df = pd.concat([self._xtest_df, scores_df], axis=1,ignore_index=False) 
+		#make 2D array of ypred scores 
+		self._xtest_df["ypred_scores"] = ypred.tolist()
 
 		discr_threshs = []
-	
-		#do preprocessing for energy-separated roc curves
-		energy_ranges = []
+
+		scores_true4 = self._xtest_df[self._xtest_df["label"] == 4]["ypred_scores"].to_numpy()
+		scores_true4 = np.stack(scores_true4)		
+		scores_true6 = self._xtest_df[self._xtest_df["label"] == 6]["ypred_scores"].to_numpy()
+		scores_true6 = np.stack(scores_true6)		
+
+		print(scores_true4.shape,scores_true4[0])
+		hep.cms.label("Preliminary", data=True, lumi=None, com=13) # ax can be implicit
+		plt.xlabel("predicted score")
+		plt.hist(scores_true4[:,1],label="true iso",histtype='step',bins=50,log=True,density=True)
+		plt.hist(scores_true6[:,1],label="true nonIso",histtype='step',bins=50,log=True,density=True)
+		plt.legend()
+		#plt.show()
+		plotname = self._path+"/predScore_testSample"
+		if self._extra_label != "":
+			plotname += "_"+self._extra_label	
+		plt.savefig(plotname+"."+self._form,format=self._form)
+		
 		nclasses = len(ypred[0])
 		if nclasses == 2:
 			labels = []
@@ -601,13 +606,13 @@ class ModelBase(ABC):
 			#know that OneHotEncoder handles labels in numerical order, so if 4 corresponds to isoBkg, then its corresponding OneHotEncoded idx is 0
 			pos_label = 1
 			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[1],bkgclassname=classes[0],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = ret_fpr_thresh)
+			self.EnergySplitROC(pos_label=pos_label,fpr_threshes = fpr_threshs, fpr_thresh = ret_fpr_thresh)
 			discr_threshs.append(discr_thresh)
 			#do for phys bkg/iso bkg too
 			pos_label = 0
 			discr_thresh = self.VizROC(self._ytest, ypred,sigclassname=classes[0],bkgclassname=classes[1],pos_label = pos_label, fpr_threshs = fpr_threshs, fpr_thresh = ret_fpr_thresh)
 			#do energy breakdown
-			#TODO - give self._xtest_df (which should include energy)
-			#self.EnergySplitROC(self._xtest_df,self._ytest_df,ypred,pos_label,batch_size=batch_size,verb=verb)
+			self.EnergySplitROC(pos_label=pos_label,fpr_threshes = fpr_threshs, fpr_thresh = ret_fpr_thresh)
 		else:  #multiclass
 			#plot physics bkg vs other bkgs
 			thresh_class1 = self.VizMulticlassROC(self._ytest, ypred,1,zoom=True, fpr_thresh = fpr_thresh)
