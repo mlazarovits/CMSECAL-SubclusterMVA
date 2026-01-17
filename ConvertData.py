@@ -23,8 +23,7 @@ class FileReader:
 		if not os.path.exists(pdir):
 			os.mkdir(pdir)
 		self._output_parquet_data = pdir
-
-
+	
 class TTreeReader(FileReader):
 	def __init__(self, obj, tag, extra="", printStats = False):
 		super().__init__(obj, printStats)
@@ -34,7 +33,7 @@ class TTreeReader(FileReader):
 			self._output_parquet_data += "_"+extra
 		os.makedirs(self._output_parquet_data,exist_ok=True)
 
-	def ProcessCNNBranches(self, file, sample, step_size=10000, debug = False, labelas = -999, recreate_files = False, chunkrange = [-1,-1]):
+	def ProcessCNNBranches(self, file, sample, step_size=10000, debug = False, labelas = -999, recreate_files = False, chunkrange = [-1,-1], dryrun = False):
 		branches = [
 			f"SC_rh_iEta_{self._tag}",
 			f"SC_rh_iPhi_{self._tag}",
@@ -58,6 +57,9 @@ class TTreeReader(FileReader):
 			return
 		print("Processing sample",sample,"from file",file,"with step size",step_size,"and",nchunks,"chunks")
 		print("Branches",branches)
+		if dryrun:
+			print("Dry run only. Returning")
+			return
 		for chunk in uproot.iterate(file + ":tree", branches, step_size=step_size, library="ak",
 				num_workers = 8, #multithreading options
 				decompression_executor=ThreadPoolExecutor(max_workers=8),
@@ -109,7 +111,7 @@ class TTreeReader(FileReader):
 		#self._data = pd.concat(data_accum, ignore_index=True)
 		print("Done processing file",file,"took",total_time,"seconds total with",total_time / nchunk,"seconds on average per chunk\n\n")
 	
-	def ProcessFileCNN(self, file, sample, step_size=10000, chunkrange=[-1,-1], debug=False, labelas = -999):
+	def ProcessFileCNN(self, file, sample, step_size=10000, chunkrange=[-1,-1], debug=False, labelas = -999, dryrun = False):
 		if sample == "" and "SMS" in file:
 			match = "_AODSIM_"
 			sample = file[file.find("SMS-"):]
@@ -117,10 +119,10 @@ class TTreeReader(FileReader):
 			sample = sample[:sample.find("_superclusters")]
 		if sample.find("-") != -1:
 			sample = sample.replace("-","_")
-		self.ProcessCNNBranches(file,sample,step_size,debug,labelas,chunkrange=chunkrange)
+		self.ProcessCNNBranches(file,sample,step_size,debug,labelas,chunkrange=chunkrange,dryrun=dryrun)
 		print("Wrote parquet chunks to",self._output_parquet_data)
 
-	def ProcessFileDNN(self, file, sample, step_size=10000, chunkrange = [-1,-1], debug=False, labelas = -999):
+	def ProcessFileDNN(self, file, sample, step_size=10000, chunkrange = [-1,-1], debug=False, labelas = -999, dryrun = False):
 		if sample == "" and "SMS" in file:
 			match = "_AODSIM_"
 			sample = file[file.find("SMS-"):]
@@ -128,10 +130,10 @@ class TTreeReader(FileReader):
 			sample = sample[:sample.find("_photons")]
 		if sample.find("-") != -1:
 			sample = sample.replace("-","_")
-		self.ProcessDNNBranches(file,sample,step_size,debug=debug,labelas=labelas,chunkrange=chunkrange)
+		self.ProcessDNNBranches(file,sample,step_size,debug=debug,labelas=labelas,chunkrange=chunkrange,dryrun=dryrun)
 		print("Wrote parquet chunks to",self._output_parquet_data)
 	
-	def ProcessDNNBranches(self, file, sample, step_size=10000, debug=False, labelas=-999, recreate_files = False, chunkrange=[-1,-1]):
+	def ProcessDNNBranches(self, file, sample, step_size=10000, debug=False, labelas=-999, recreate_files = False, chunkrange=[-1,-1], dryrun = False):
 		branches = [
 			f"Photon_EtaVar_{self._tag}",
 			f"Photon_PhiVar_{self._tag}",
@@ -146,7 +148,13 @@ class TTreeReader(FileReader):
 			f"Photon_Pt_{self._tag}",
 			f"Photon_EtaCenter_{self._tag}",
 			f"Photon_trueLabel_{self._tag}",
+			f"PassGJetsCR",
+			f"Photon_PassGJetsCR_Obj",
+			f"Photon_Energy_{self._tag}"
 		]
+		if "photons_defaultv4p4" in file:
+			branches.append(f"PassDijetsCR")
+			branches.append(f"Photon_PassDijetsCR_Obj")
 		print("Branches",branches)
 		data_accum = []
 		nchunk = 0
@@ -162,6 +170,9 @@ class TTreeReader(FileReader):
 			print("Chunking file",file,"in",step_size,"chunks")
 
 		print("chunkrange",chunkrange)
+		if dryrun:
+			print("Dry run only. Returning")
+			return
 		for chunk in uproot.iterate(file + ":tree", branches, step_size=step_size, library="ak",
 				num_workers = 8, #multithreading options
 				decompression_executor=ThreadPoolExecutor(max_workers=8),
@@ -186,13 +197,14 @@ class TTreeReader(FileReader):
 			t1 = time.perf_counter()
 			print(f"Processing chunk #{nchunk}",end="\r",flush=True)
 
-
-	
+				
 			pho_counts = ak.num(chunk[f"Photon_trueLabel_{self._tag}"])
 			truelabel = ak.to_numpy(ak.flatten(chunk[f"Photon_trueLabel_{self._tag}"],axis=1))
 			if labelas != -999:
 				truelabel = pa.array([labelas] * sum(pho_counts))
 			pho_counts = ak.num(chunk[f"Photon_trueLabel_{self._tag}"])
+
+
 			#write to parquet table directly
 			table = pa.table({
 				"event_idx": np.repeat(np.arange(len(chunk)), pho_counts),
@@ -209,12 +221,17 @@ class TTreeReader(FileReader):
 				f"Photon_hadTowOverEM": ak.to_numpy(ak.flatten(chunk[f"Photon_hadTowOverEM"],axis=1)),
 				f"Photon_ecalRHSumEtConeDR04": ak.to_numpy(ak.flatten(chunk[f"Photon_ecalRHSumEtConeDR04"],axis=1)),
 				f"Photon_Pt_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_Pt_{self._tag}"],axis=1)),
+				f"Photon_Energy_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_Energy_{self._tag}"],axis=1)),
 				f"Photon_EtaCenter_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_EtaCenter_{self._tag}"],axis=1)),
 				"sample": pa.array([sample] * sum(pho_counts))
 			})	
-
+			if "PassDijetsCR" in branches:
+				passdijetscr, _ = ak.broadcast_arrays(chunk["PassDijetsCR"], chunk[f"Photon_trueLabel_{self._tag}"])
+				table["PassDijetsCR"] = passdijetscr
+				passdijetscr_obj = ak.to_numpy(ak.flatten(chunk[f"Photon_PassDijetsCR_Obj"],axis=1))
+				table["Photon_PassDijetsCR_Obj"] = passdijetscr_obj
+				table["Photon_PassGJetsCR_Obj"] = ak.to_numpy(ak.flatten(chunk[f"Photon_PassGJetsCR_Obj"],axis=1))
 			pq.write_table(table, os.path.join(self._output_parquet_data, parquet_fname))
-
 			#data_accum.append(df)
 			nchunk += 1
 			total_nchunk += 1

@@ -1,6 +1,7 @@
 import numpy as np
 import argparse
 from ConvertData import TTreeReader
+import os
 
 def make_sms_samples_sc():
 	#("root://cmseos.fnal.gov//store/user/mlazarov/LLPMVA_TrainingSamples/LLPSkims/SMS_Sig_SVIPM100_v31_SMS-GlGlZ_AODSIM_mGl-1500_mN2-500_mN1-100-ct0p1_superclusters_defaultv9p2.root","",step_size=10000,maxnchunk=-1,debug=False,labelas=1)
@@ -25,6 +26,11 @@ def make_sms_samples_photons():
 	return glgl
 
 def main(args):
+	#import kerebos credentials to conda env if not already there
+	kerb = os.getenv("KRB5CCNAME")
+	if(kerb is None):
+		print("Setting kerebos credentials")
+		os.environ["KRB5CCNAME"] = "API:"
 	objType = "CMS"
 	step_size = 10000
 	files = []
@@ -39,10 +45,14 @@ def main(args):
 		else:
 			print("Process and year not found")
 			exit()
-	if args.proc == "JetHT" and args.era == "C":
-		if args.year == "2018":
+	if args.proc == "JetHT" and args.year == "2018":
+		if args.era == "C":
 			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p3_noIso_diJetsCR_JetHT_R18_InvMET100_nolumimask_v31_JetHT_AOD_Run2018C-15Feb2022_UL2018-v1.root"]
 			sample = "JetHT18_RunC"
+			odir = "/"+sample
+		elif args.era == "B":
+			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p4_noIso_dijetsCR_JetHT_R18_InvMET100_v31_JetHT_AOD_Run2018B-15Feb2022_UL2018-v1.root"]
+			sample = "JetHT18_RunB"
 			odir = "/"+sample
 		else:
 			print("Process and year not found")
@@ -56,7 +66,7 @@ def main(args):
 			label = 4
 		odir = "/SMS_GlGl"
 	
-	reader_train = TTreeReader(args.obj, objType)
+	reader_train = TTreeReader(args.obj, objType, "parquet_output/CMS_"+args.obj+"s"+odir)
 	reader_test = TTreeReader(args.obj, objType,"test/"+odir)
 	if args.test:
 		reader = reader_test
@@ -70,11 +80,11 @@ def main(args):
 	if args.obj == "SC":
 	#("root://cmseos.fnal.gov//store/user/mlazarov/LLPMVA_TrainingSamples/LLPSkims/SMS_Sig_SVIPM100_v31_SMS-GlGlZ_AODSIM_mGl-1500_mN2-500_mN1-100-ct0p1_superclusters_defaultv9p2.root","",step_size=10000,maxnchunk=-1,debug=False,labelas=1)
 		for file in files:
-			reader.ProcessFileCNN(file,sample,step_size=10000,chunkrange = [int(args.chunkFirst), int(args.chunkLast)],labelas=label)
+			reader.ProcessFileCNN(file,sample,step_size=10000,chunkrange = [int(args.chunkFirst), int(args.chunkLast)],labelas=label, dryrun=args.dryRun)
 	if args.obj == "photon":
 	#("root://cmseos.fnal.gov//store/user/mlazarov/LLPMVA_TrainingSamples/LLPSkims/SMS_Sig_SVIPM100_v31_SMS-GlGlZ_AODSIM_mGl-1500_mN2-500_mN1-100-ct0p1_superclusters_defaultv9p2.root","",step_size=10000,maxnchunk=-1,debug=False,labelas=1)
 		for file in files:
-			reader.ProcessFileDNN(file,sample,step_size=10000,chunkrange = [int(args.chunkFirst), int(args.chunkLast)],labelas=label)
+			reader.ProcessFileDNN(file,sample,step_size=10000,chunkrange = [int(args.chunkFirst), int(args.chunkLast)],labelas=label, dryrun=args.dryRun)
 
 
 if __name__ == "__main__":
@@ -86,5 +96,6 @@ if __name__ == "__main__":
 	parser.add_argument("--test",default=False,help="make test data",action='store_true')
 	parser.add_argument("--chunkFirst",default=-1)
 	parser.add_argument("--chunkLast",default=-1)
+	parser.add_argument("--dryRun",default=False,action='store_true',help="dry run to see how many chunks are in specified sample")
 	args = parser.parse_args()
 	main(args)
