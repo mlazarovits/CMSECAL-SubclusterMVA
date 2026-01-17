@@ -55,7 +55,6 @@ class DeepNeuralNetwork(ModelBase):
 	
 		self._xtrain = None
 		self._ytrain = None
-		self._wtrain = None
 		self._xtest = None
 		self._ytest = None
 		rand = 43 #change to random number to randomize
