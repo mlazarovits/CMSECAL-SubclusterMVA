@@ -32,7 +32,7 @@ class TTreeReader(FileReader):
 		if extra != "":
 			self._output_parquet_data += extra
 		os.makedirs(self._output_parquet_data,exist_ok=True)
-		print("self._output_parquet_data",self._output_parquet_data)
+		print("Writing parquet files to",self._output_parquet_data)
 
 	def ProcessCNNBranches(self, file, sample, step_size=10000, debug = False, labelas = -999, recreate_files = False, chunkrange = [-1,-1], dryrun = False):
 		branches = [
