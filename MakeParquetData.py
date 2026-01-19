@@ -65,9 +65,11 @@ def main(args):
 		if args.obj == "photon":
 			label = 4
 		odir = "/SMS_GlGl"
-	
-	reader_train = TTreeReader(args.obj, objType, "parquet_output/CMS_"+args.obj+"s"+odir)
-	reader_test = TTreeReader(args.obj, objType,"test/"+odir)
+
+	print("odir",odir)
+	reader_train = TTreeReader(args.obj, objType, odir)# "CMS_"+args.obj+"s"+odir)
+	reader_test = TTreeReader(args.obj, objType,"_test"+odir)
+	exit()
 	if args.test:
 		reader = reader_test
 	else:

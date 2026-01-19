@@ -30,8 +30,9 @@ class TTreeReader(FileReader):
 		self._tag = tag
 		self._output_parquet_data = self._output_parquet_data+f"/{self._tag}_{self._obj}s"
 		if extra != "":
-			self._output_parquet_data += "_"+extra
+			self._output_parquet_data += extra
 		os.makedirs(self._output_parquet_data,exist_ok=True)
+		print("self._output_parquet_data",self._output_parquet_data)
 
 	def ProcessCNNBranches(self, file, sample, step_size=10000, debug = False, labelas = -999, recreate_files = False, chunkrange = [-1,-1], dryrun = False):
 		branches = [
@@ -225,12 +226,6 @@ class TTreeReader(FileReader):
 				f"Photon_EtaCenter_{self._tag}": ak.to_numpy(ak.flatten(chunk[f"Photon_EtaCenter_{self._tag}"],axis=1)),
 				"sample": pa.array([sample] * sum(pho_counts))
 			})	
-			if "PassDijetsCR" in branches:
-				passdijetscr, _ = ak.broadcast_arrays(chunk["PassDijetsCR"], chunk[f"Photon_trueLabel_{self._tag}"])
-				table["PassDijetsCR"] = passdijetscr
-				passdijetscr_obj = ak.to_numpy(ak.flatten(chunk[f"Photon_PassDijetsCR_Obj"],axis=1))
-				table["Photon_PassDijetsCR_Obj"] = passdijetscr_obj
-				table["Photon_PassGJetsCR_Obj"] = ak.to_numpy(ak.flatten(chunk[f"Photon_PassGJetsCR_Obj"],axis=1))
 			pq.write_table(table, os.path.join(self._output_parquet_data, parquet_fname))
 			#data_accum.append(df)
 			nchunk += 1
