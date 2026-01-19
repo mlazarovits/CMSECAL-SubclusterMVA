@@ -66,12 +66,11 @@ def main(args):
 			label = 4
 		odir = "/SMS_GlGl"
 
-	reader_train = TTreeReader(args.obj, objType, odir)# "CMS_"+args.obj+"s"+odir)
-	reader_test = TTreeReader(args.obj, objType,"_test"+odir)
+	reader = None
 	if args.test:
-		reader = reader_test
+		reader = TTreeReader(args.obj, objType,"_test"+odir)
 	else:
-		reader = reader_train
+		reader = TTreeReader(args.obj, objType, odir)
 	if args.proc == "MET":
 		print("these samples haven't been set yet....")
 		exit()
