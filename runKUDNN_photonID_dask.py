@@ -3,16 +3,35 @@ from ProcessData import DataCleaner
 import pandas as pd
 from DeepNN import DeepNeuralNetwork
 import numpy as np
+import os
 
 # DNN for bkg classification (iso vs noniso) 
 def runDNN(args):
-	printstats = True
+	#import kerebos credentials to conda env if not already there
+	kerb = os.getenv("KRB5CCNAME")
+	if(kerb is None):
+		print("Setting kerebos credentials")
+		os.environ["KRB5CCNAME"] = "API:"
+	printstats = False
 	cleaner = DataCleaner(args.parquetpath, "Photon", "CMS", printstats)
-	dask_df = cleaner.GetDaskData(debug=args.debug)
-	cleaner.CleanAndConvert(dask_df)
+	subdirs = [["JetHT18_RunB","*"],["JetHT18_RunC","*"],["EGamma18_RunC","*"]]
+	if args.endcap: #take only subset for endcap since the stats aren't that bad without iso presel
+		subdirs = [["JetHT18_RunB",[0,100]],["JetHT18_RunC",[0,100]],["EGamma18_RunC","*"]]
+	#subdirs = [["JetHT18_RunB","*"],["JetHT18_RunC","*"],["EGamma18_RunC","*"],["SMS_GlGl","*"]
+	blocksize = "100 MB"
+	do_iso_presel = True
+	if args.endcap:
+		do_iso_presel = False
+	dask_df = cleaner.GetDaskData(subdirs, blocksize, debug=args.debug)
+	dask_df_cleaned = cleaner.CleanDaskData(dask_df, do_iso_presel=do_iso_presel)
+	cleaner.ConvertToPandas(dask_df_cleaned)
+	cleaner.SetPrintStats(True)
 	cleaner.SelectClass(4,"EGamma")
 	cleaner.SelectClass(6,"JetHT")
-	cleaner.BarrelOnly("Photon_EtaCenter")	
+	if args.endcap:
+		cleaner.EndcapOnly("Photon_EtaCenter")
+	else:
+		cleaner.BarrelOnly("Photon_EtaCenter")	
 	classes_to_balance = [4,6]
 	cleaner.BalanceClasses(classes_to_balance)
 	
@@ -42,22 +61,21 @@ def runDNN(args):
 	catToName = {4 : "isoBkg", 6 : "nonIsoBkg"}
 	catToColor = {4 : "green", 6 : "red"}
 
-	default_cols = ["sample","event","object","label"]
 	network_name = "KU-DNN_photonID"
 	if args.extra is not None:
 		network_name += "_"+args.extra
 	nepochs = int(args.nEpochs)
+	if args.debug:
+		nepochs = 5	
 	early = False
 	if(args.network == "shape"):
 		#default input set
-		shape_cols += default_cols
 		cols = shape_cols 
 	elif(args.network == "iso"):
 		#default input set
-		iso_cols += default_cols
 		cols = iso_cols 
 	elif(args.network == "isoShape"):
-		cols = default_cols + shape_cols + iso_cols
+		cols = shape_cols + iso_cols
 	else:
 		print("Invalid network selected",args.network)
 	network_name += "_"+args.network
@@ -72,11 +90,6 @@ def runDNN(args):
 				args.exclude = args.exclude.replace("+","p")
 			network_name += "_excludingFeature_"+args.exclude
 
-	if(args.dryRun):
-		cols.append("Energy")
-	#if(args.reweightClasses):
-	#	cols.append("weight")
-
 	print("features used",cols)	
 	network_name += "_"+str(nepochs)+"epochs"
 	if(early):
@@ -86,6 +99,8 @@ def runDNN(args):
 	#len(nodes) = # layers
 	#nodes[i] = # nodes at ith layer
 	network_name += "_"+args.arch
+	if(args.endcap):
+		network_name += "_endcapOnly";
 	if(args.arch == "default"):
 		nodes = [64, 64, 64]
 	if(args.arch == "med32"):
@@ -98,7 +113,8 @@ def runDNN(args):
 		nodes = [8, 8, 8, 8, 8] 
 	if(args.arch == "small8"):
 		nodes = [8, 8] 
-	
+
+
 	
 	model = DeepNeuralNetwork(data,nodes,cols,catToName,catToColor,network_name)
 	model.VizInputs()
@@ -131,6 +147,7 @@ def main():
 	#parser.add_argument("--reweightClasses",help="reweight classes",default=False,action='store_true')
 	parser.add_argument('--testNetwork',help='evaluate trained network specified by other flags',default=False,action='store_true')
 	parser.add_argument('--debug',help='debug mode',default=False,action='store_true')
+	parser.add_argument('--endcap',help='train for endcap only',default=False,action='store_true')
 	args = parser.parse_args()
 
 	runDNN(args)
