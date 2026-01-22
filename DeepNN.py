@@ -1,9 +1,9 @@
 from ModelBase import ModelBase
-from keras import layers, metrics, Input, Model, activations
+from keras import layers, metrics, Input, Model, activations 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import normalize, MinMaxScaler, LabelBinarizer 
+from sklearn.preprocessing import LabelBinarizer 
 import os
 import subprocess
 import numpy as np
@@ -15,6 +15,8 @@ class DeepNeuralNetwork(ModelBase):
 		self._inputShape = None
 		self._nNodes = None
 		self._xtrain = None
+		self._xtrain_mu = None
+		self._xtrain_var = None
 		self._ytrain = None
 		self._wtrain = None
 		self._xtest = None
@@ -75,9 +77,12 @@ class DeepNeuralNetwork(ModelBase):
 			self._xtrain_df['label'] = labels
 			labels = self._lb.inverse_transform(self._ytest)
 			self._xtest_df['label'] = labels
-		
 	
 			self._xtrain = self.MakeSamples(self._xtrain_df)
+			self._xtrain_mu = self._xtrain.mean(axis=0)
+			self._xtrain_var = self._xtrain.var(axis=0)
+			print("Mean:", self._xtrain_mu)
+			print("Std:", np.sqrt(self._xtrain_var))
 			self._xtest = self.MakeSamples(self._xtest_df)
 		else:
 			self._xtrain_df = None
@@ -113,21 +118,23 @@ class DeepNeuralNetwork(ModelBase):
 
 	def MakeSamples(self, indata):
 		print("Samples are using features",self._features)
-		x = indata[self._features]
-		#normalize data
-		scaler = MinMaxScaler()
-		x_norm = scaler.fit_transform(x)
-		return x_norm
+		x = indata[self._features].to_numpy()
+		#normalizing data at keras level
+		return x
 
 
 	#fully connected network
 	def BuildModel(self):
 		#print("ytrain",self._ytrain[0])
 		print("_xtest",self._xtest[0],"shape",self._xtest[0].shape)
+		#need normalization layer
+		norm = layers.Normalization(mean = self._xtrain_mu, variance = self._xtrain_var,name="normalization_layer")
 		input_layer = Input(shape=self._xtest[0].shape)
 		#reLu activation at internal layers
 		dense_layers = [layers.Dense(n,name="dense_layer"+str(i),activation=activations.relu) for i, n in enumerate(self._nNodes)]
-		x = dense_layers[0](input_layer)
+
+		x_norm = norm(input_layer)
+		x = dense_layers[0](x_norm)
 		for i, d in enumerate(dense_layers[1:]):
 			x = d(x)
 
@@ -136,6 +143,11 @@ class DeepNeuralNetwork(ModelBase):
 		
 		x = output_layer(x) 
 		self._model = Model(inputs = input_layer, outputs = x, name = self._name)
+		# check that normalization is correct
+		x_train_norm = self._model.layers[1](self._xtrain).numpy()
+		print("training norm mean",x_train_norm.mean(axis=0))
+		print("training norm std",x_train_norm.std(axis=0))
+
 
 	#SGD optimizer
 	#cross-entropy loss (binary or categorical depending on labeling scheme)
@@ -152,9 +164,9 @@ class DeepNeuralNetwork(ModelBase):
 	
 	#data is a 1D array
 	def MakeInputHist(self, data, col, label, fextra = ""):
-		scaler = MinMaxScaler()
-		data_norm = scaler.fit_transform(data)
-		histdata = data_norm[col]
+		#scaler = MinMaxScaler()
+		#data_norm = scaler.fit_transform(data)
+		histdata = data[col]
 		plotname = self._path+"/"+col
 		if(fextra != ""):
 			fextra = fextra.replace(" ","_")
@@ -181,24 +193,16 @@ class DeepNeuralNetwork(ModelBase):
 		
 		histmin = []
 		histmax = []
-		labels = indata['label'].to_numpy()
-		data = indata.drop(columns=['label'])
-		features = data.columns
-		#normalize per col
-		scaler = MinMaxScaler()
-		data_norm = scaler.fit_transform(data)
-		norm_pd = pd.DataFrame(data_norm,columns=features)
-		norm_pd['label'] = labels
 		#print("catnames",catnames)
 		for j, l in enumerate(self._catnames.keys()):
-			mask = norm_pd['label'] == l
-			histdata = norm_pd[mask][col]
+			mask = indata['label'] == l
+			histdata = indata[mask][col]
 			histmin.append(histdata.min())
 			histmax.append(histdata.max())
 		bins = np.linspace(min(histmin), max(histmax), 50)
 		for j, l in enumerate(self._catnames.keys()):
-			mask = norm_pd['label'] == l
-			histdata = norm_pd[mask][col].to_numpy()
+			mask = indata['label'] == l
+			histdata = indata[mask][col].to_numpy()
 			ns, bins, _ = plt.hist(histdata,label=self._catnames[l],log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
 		plt.title(col)
 		plt.legend()
