@@ -463,6 +463,10 @@ class ModelBase(ABC):
 				f.write(sample+" ")
 		#self._model.load_weights(files[min(keys)])	
 		self._model = load_model(files[min(keys)])	
+		#check that correct normalization parameters were loaded
+		norm_layer = self._model.get_layer("normalization_layer")
+		print("Loaded normalization layer mean",norm_layer.mean.numpy())
+		print("Loaded normalization layer var",norm_layer.variance.numpy())
 
 	def EnergySplitROC(self, pos_label,fpr_threshes=[], fpr_thresh=-1, fextra=""):
 		#do preprocessing for energy-separated roc curves
@@ -558,6 +562,7 @@ class ModelBase(ABC):
 	'''	
 	def TestModel(self,batch_size=1,verb=1,validate_model = False, fpr_threshs = [], ret_fpr_thresh = 0.001):
 		self.LoadBestModel()
+		self.summary()
 		#save optimal model as .keras for frugally-deep
 		ypred = self._model.predict(self._xtest,batch_size=batch_size,verbose=verb)
 		print("original ypred",ypred[0])

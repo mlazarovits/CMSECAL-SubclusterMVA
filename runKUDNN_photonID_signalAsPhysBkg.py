@@ -5,7 +5,7 @@ from DeepNN import DeepNeuralNetwork
 import numpy as np
 import subprocess
 import re
-
+import os
 def get_unique_samples(xrootd_path, redirector="root://cmseos.fnal.gov"):
 	"""
 	xrootd_path: e.g. /store/user/you/parquet/
@@ -14,16 +14,16 @@ def get_unique_samples(xrootd_path, redirector="root://cmseos.fnal.gov"):
 	result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
 	pattern = re.compile(
-	    r"chunk_\d+_sample_(.+?)_type_CMS\.parquet$"
+		r"chunk_\d+_sample_(.+?)_type_CMS_Photons\.parquet$"
 	)
 
 	samples = set()
 
 	for line in result.stdout.splitlines():
-	    filename = line.split("/")[-1]
-	    match = pattern.match(filename)
-	    if match:
-	        samples.add(match.group(1))
+		filename = line.split("/")[-1]
+		match = pattern.match(filename)
+		if match:
+		    samples.add(match.group(1))
 
 	return samples
 
@@ -34,48 +34,54 @@ def runDNN(args):
 	#get names of mass points for sample balancing
 	remote_path_sms = args.parquetpath
 	remote_path_sms = remote_path_sms[remote_path_sms.rfind("//")+1:]
-	subdirs = ["JetHT18_RunC","SMS_"+args.subproc]
+	subdirs = [["JetHT18_RunC","*"],["SMS_"+args.subproc,"*"]]
 	all_sms_mass_points = set() 
-	for subdir in subdirs:
-		if "SMS" not in subdir:
-			continue
-		sms_samples = get_unique_samples(remote_path_sms+"/"+subdir)
-		all_sms_mass_points.update(sms_samples)
-	sms_samples = get_unique_samples(remote_path_sms+"/SMS_"+args.subproc)
-	
+	#for subdir in subdirs:
+	#	if "SMS" not in subdir:
+	#		continue
+	#	sms_samples = get_unique_samples(remote_path_sms+"/"+subdir)
+	#	all_sms_mass_points.update(sms_samples)
+	#sms_samples = get_unique_samples(remote_path_sms+"/SMS_"+args.subproc)
+
 	printstats = False
 	cleaner = DataCleaner(args.parquetpath, "Photon", args.SCtype, printstats)
 	blocksize = args.blocksize
 	dask_df = cleaner.GetDaskData(subdirs, blocksize, args.debug)
-	dask_df_cleaned = cleaner.CleanDaskData(dask_df)
+	print("dask cols",dask_df.columns)
+	do_iso_presel = True
+	if args.endcap:
+		do_iso_presel = False
+	dask_df_cleaned = cleaner.CleanDaskData(dask_df,do_iso_presel=do_iso_presel)
 	
 	#cap samples per mass point as to not overwhelm the BH contribution
 	#can set based on how many mass points there are - ie nsample = 55442 / len(sms_samples)
 	if args.subproc == "SqSq":
 		nsample = 100
 	elif args.subproc == "GlGl":
-		nsample = 500
+		nsample = 1000
+		#nsample = 10000
 	else:
 		nsample = 500
-	if len(sms_samples) < 1:
-		dask_df_downsampled = dask_df_cleaned
-	else:
-		for sample in sms_samples:
-			if args.debug and "mGl_1500_mN2_500_mN1_100" not in sample and "GlGl" in args.subproc:
-				continue
-			if args.debug and "mGl_1700_mN2_1500_mN1_100_ct0p1" not in sample and args.subproc == "SqSq":
-				continue
-			dask_df_downsampled = cleaner.CapSampleDask(dask_df_cleaned,sample,500)
-	cleaner.ConvertToPandas(dask_df_downsampled)
+	#if len(sms_samples) < 1:
+	#	dask_df_downsampled = dask_df_cleaned
+	#else:
+	#	#print("downsampling sms")
+	#	for sample in sms_samples:
+	#		#if args.debug and "mGl_1500_mN2_500_mN1_100" not in sample and "GlGl" in args.subproc:
+	#		if args.debug and "SMS_GlGl_mGl_2000_mN2_1900_mN1_1500" not in sample and "GlGl" in args.subproc:
+	#			continue
+	#		if args.debug and "mGl_1700_mN2_1500_mN1_100_ct0p1" not in sample and args.subproc == "SqSq":
+	#			continue
+	#		dask_df_cleaned = cleaner.CapSampleDask(dask_df_cleaned,sample,nsample)
+	cleaner.ConvertToPandas(dask_df_cleaned)
 	cleaner.SetPrintStats(True)
-	cleaner.DropClass(3)
-	#test with SMS (not seen) and unseen MET PD for BH
-	cleaner.SelectClass(1,"SMS"); #choose for a certain class (first arg) to only come from sample (second arg)
-	cleaner.SelectClass(2,"METPD18_RunC")
-
-	#do preprocessing
-	cleaner.BarrelOnly("Photon_EtaCenter")
-
+	#test with SMS (not seen) and unseen JetHT PD for nonisobkg
+	cleaner.SelectClass(4,"SMS"); #choose for a certain class (first arg) to only come from sample (second arg)
+	cleaner.SelectClass(6,"JetHT18_RunC")
+	if args.endcap:
+		cleaner.EndcapOnly("Photon_EtaCenter")
+	else:
+		cleaner.BarrelOnly("Photon_EtaCenter")	
 	#balance classes via random undersampling - default
 	catToName = {4 : "isoBkg", 6 : "nonIsoBkg"}
 	catToColor = {4 : "green", 6 : "red"}
@@ -83,7 +89,6 @@ def runDNN(args):
 	cleaner.BalanceClasses(classes_to_balance)
 	cleaner.MakeSigmas(['Photon_EtaVar_CMS','Photon_PhiVar_CMS'])
 	data = cleaner.GetData()
-
 	
 	shape_cols = ["Photon_EtaSig_CMS","Photon_PhiSig_CMS","Photon_EtaPhiCov_CMS","Photon_majorLength_CMS", "Photon_minorLength_CMS"]
 	iso_cols = ["Photon_hcalTowerSumEtConeDR04","Photon_trkSumPtSolidConeDR04","Photon_trkSumPtHollowConeDR04","Photon_hadTowOverEM","Photon_ecalRHSumEtConeDR04"]
@@ -91,6 +96,8 @@ def runDNN(args):
 	if args.extra is not None:
 		network_name += "_"+args.extra
 	nepochs = int(args.nEpochs)
+	#if args.debug:
+	#	nepochs = 5
 	if(args.network == "shape"):
 		#default input set
 		cols = shape_cols 
@@ -111,6 +118,8 @@ def runDNN(args):
 	#len(nodes) = # layers
 	#nodes[i] = # nodes at ith layer
 	network_name += "_"+args.arch
+	if(args.endcap):
+		network_name += "_endcapOnly";
 	arch_map = {}
 	arch_map["default"] = [64, 64, 64]
 	arch_map["med16"] = [16, 16, 16]
@@ -122,9 +131,7 @@ def runDNN(args):
 	
 	model = DeepNeuralNetwork(None,nodes,cols,catToName,catToColor,network_name,"SMSasIsoBkg_"+args.subproc)
 	model.SetTestData(data)
-	model.BuildModel()
-	model.CompileModel()
-	model.summary()
+	model.VizTestSample()
 	print("Evaluating network on test sample",network_name)
 	model.TestModel(1,1,ret_fpr_thresh = 0.3)
 	print("Evaluating network on external signal sample",network_name)
@@ -132,6 +139,10 @@ def runDNN(args):
 	
 
 def main():
+	kerb = os.getenv("KRB5CCNAME")
+	if(kerb is None):
+		print("Setting kerebos credentials")
+		os.environ["KRB5CCNAME"] = "API:"
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--parquetpath",help="path to parquet files",required=True)
 	parser.add_argument('--network','-n',help="which set of inputs to run",choices=["iso","shape","isoShape"],required=True)
@@ -145,6 +156,7 @@ def main():
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--debug",help="run over only a few parquet files per sample to debug faster",action='store_true',default=False)
 	parser.add_argument("--blocksize",help='chunk size to read parquet files in for dask',default="100 MB")
+	parser.add_argument('--endcap',help='train for endcap only',default=False,action='store_true')
 	args = parser.parse_args()
 
 	runDNN(args)

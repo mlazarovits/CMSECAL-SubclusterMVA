@@ -81,6 +81,10 @@ class DeepNeuralNetwork(ModelBase):
 			self._xtrain = self.MakeSamples(self._xtrain_df)
 			self._xtrain_mu = self._xtrain.mean(axis=0)
 			self._xtrain_var = self._xtrain.var(axis=0)
+			with open(self._discr_info, "w") as f:
+				f.write("Normalization mean".join(map(str,self._xtrain_mu)))
+				f.write("Normalization var".join(map(str,self._xtrain_var)))
+				f.write("\n")
 			print("Mean:", self._xtrain_mu)
 			print("Std:", np.sqrt(self._xtrain_var))
 			self._xtest = self.MakeSamples(self._xtest_df)
@@ -91,6 +95,8 @@ class DeepNeuralNetwork(ModelBase):
 			self._xtest = None
 			self._ytrain = None
 			self._ytest = None
+			self._xtrain_mu = None 
+			self._xtrain_var = None 
 		
 
 

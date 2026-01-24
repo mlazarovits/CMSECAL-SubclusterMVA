@@ -16,7 +16,7 @@ def runDNN(args):
 	cleaner = DataCleaner(args.parquetpath, "Photon", "CMS", printstats)
 	subdirs = [["JetHT18_RunB","*"],["JetHT18_RunC","*"],["EGamma18_RunC","*"]]
 	if args.endcap: #take only subset for endcap since the stats aren't that bad without iso presel
-		subdirs = [["JetHT18_RunB",[0,100]],["JetHT18_RunC",[0,100]],["EGamma18_RunC","*"]]
+		subdirs = [["JetHT18_RunB",[0,800]],["JetHT18_RunC",[0,800]],["EGamma18_RunC","*"],["SMS_GlGl","*"]]
 	#subdirs = [["JetHT18_RunB","*"],["JetHT18_RunC","*"],["EGamma18_RunC","*"],["SMS_GlGl","*"]
 	blocksize = "100 MB"
 	do_iso_presel = True
@@ -26,7 +26,7 @@ def runDNN(args):
 	dask_df_cleaned = cleaner.CleanDaskData(dask_df, do_iso_presel=do_iso_presel)
 	cleaner.ConvertToPandas(dask_df_cleaned)
 	cleaner.SetPrintStats(True)
-	cleaner.SelectClass(4,"EGamma")
+	cleaner.SelectClass(4,["SMS_GlGl","EGamma"])
 	cleaner.SelectClass(6,"JetHT")
 	if args.endcap:
 		cleaner.EndcapOnly("Photon_EtaCenter")
@@ -113,6 +113,12 @@ def runDNN(args):
 		nodes = [8, 8, 8, 8, 8] 
 	if(args.arch == "small8"):
 		nodes = [8, 8] 
+	if(args.arch == "med4"):
+		nodes = [4, 4, 4] 
+	if(args.arch == "large4"):
+		nodes = [4, 4, 4, 4, 4] 
+	if(args.arch == "small4"):
+		nodes = [4, 4] 
 
 
 	
@@ -139,7 +145,7 @@ def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--parquetpath",help="path to parquet files",required=True)
 	parser.add_argument('--network','-n',help="which set of inputs to run",choices=["iso","shape","isoShape"],required=True)
-	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","med16","med8","small8","med32","large8"],default="small3")
+	parser.add_argument('--arch','-a',help="which architecture to run",choices=["default","med16","med8","small8","med32","large8","small4","med4","large4"],default="small3")
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
