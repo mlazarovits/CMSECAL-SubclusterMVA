@@ -65,6 +65,14 @@ def main(args):
 		if args.obj == "photon":
 			label = 4
 		odir = "/SMS_GlGl"
+	if args.proc == "SqSq":
+		files = make_sms_samples_photons()
+		sample = ""
+		if args.obj == "SC":
+			label = 1
+		if args.obj == "photon":
+			label = 4
+		odir = "/SMS_SqSq"
 
 	reader = None
 	if args.test:
