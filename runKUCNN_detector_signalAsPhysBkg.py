@@ -65,8 +65,8 @@ def runCNN(args):
 				continue
 			if args.debug and "mGl_1700_mN2_1500_mN1_100_ct0p1" not in sample and args.subproc == "SqSq":
 				continue
-			dask_df_downsampled = cleaner.CapSampleDask(dask_df_cleaned,sample,500)
-	cleaner.ConvertToPandas(dask_df_downsampled)
+			dask_df_cleaned = cleaner.CapSampleDask(dask_df_cleaned,sample,500)
+	cleaner.ConvertToPandas(dask_df_cleaned)
 	cleaner.SetPrintStats(True)
 	cleaner.DropClass(3)
 	#test with SMS (not seen) and unseen MET PD for BH
