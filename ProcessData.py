@@ -12,6 +12,7 @@ import dask.dataframe as dd
 import os
 import time
 from pathlib import Path
+import subprocess
 
 class DataCleaner:
 	def __init__(self, parquet_path, obj, objtype, printStats = True):
@@ -22,12 +23,17 @@ class DataCleaner:
 		self._tag = objtype
 
 	def GetFirstFileInDir(self, directory_path):
-		# Get all entries in the directory
-		entries = os.listdir(directory_path)
-		
-		# Filter for files only and create full paths
-		files = [os.path.join(directory_path, entry) for entry in entries if os.path.isfile(os.path.join(directory_path, entry))]
-		
+		redirector = "root://cmseos.fnal.gov"
+		if redirector in directory_path:
+			xrootd_path = directory_path[len(redirector):]
+			cmd = ["xrdfs", redirector, "ls", xrootd_path]
+			result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+			files = [redirector+line for line in result.stdout.splitlines()]	
+		else:
+			# Get all entries in the directory
+			entries = os.listdir(directory_path)
+			# Filter for files only and create full paths
+			files = [os.path.join(directory_path, entry) for entry in entries if os.path.isfile(os.path.join(directory_path, entry))]
 		# Sort the files (e.g., alphabetically by name)
 		files.sort()
 		
@@ -76,7 +82,10 @@ class DataCleaner:
 			print("parquet_files",parquet_files)	
 		else:
 			print("# parquet_files",len(parquet_files),"with at least 1 sample chunked")
+		if debug:
+			print("Files",parquet_files)
 		ddf = dd.read_parquet(parquet_files,blocksize=blocksize)
+		print("ddf cols",ddf.columns)
 		t2 = time.perf_counter()
 		print("took",(t2-t1),"seconds to read data from parquet table, total # rows",ddf.shape[0].compute())
 		if ddf.shape[0].compute() == 0:
@@ -140,7 +149,6 @@ class DataCleaner:
 		if self._printstats:
 			print("Total after dropna:",ddf.shape[0].compute())
 			self.PrintStatsDask(ddf)
-
 		#do isolation preselection cut for photons only
 		#TODO - add pixel seed veto? need to rerun training samples...
 		if(do_iso_presel):
@@ -262,12 +270,25 @@ class DataCleaner:
 		indatafiltered = indata[indata[col] > val]
 		return indatafiltered
 	
-	def SelectClass(self,nclass,samp):
+	def SelectClass(self,nclass,substrings):
+		# Convert single sample to list for convenience
+		if isinstance(substrings, str):
+		    substrings = [substrings]
+		pattern = "|".join(substrings)
+		
+		mask = (self._data["label"] != nclass) | (self._data["sample"].str.contains(pattern))
+		self._data = self._data[mask]
+		
+		if self._printstats:
+		    print(f"after selecting label {nclass} for samples containing {substrings}")
+		    self.PrintStats()	
+		'''
 		mask = (self._data["label"] == nclass) | (~self._data["sample"].str.contains(samp))
 		self._data = self._data[mask]
 		if(self._printstats):
 		    print("after setting class",nclass,"to be only from",samp)
 		    self.PrintStats()
+		'''
 	
 	#only allow nsamp of samples from nclass
 	def CapClass(self,nclass,nsamp):
