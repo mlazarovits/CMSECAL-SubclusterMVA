@@ -51,7 +51,8 @@ def main(args):
 			sample = "JetHT18_RunC"
 			odir = "/"+sample
 		elif args.era == "B":
-			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p4_noIso_dijetsCR_JetHT_R18_InvMET100_v31_JetHT_AOD_Run2018B-15Feb2022_UL2018-v1.root"]
+			#files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p4_noIso_dijetsCR_JetHT_R18_InvMET100_v31_JetHT_AOD_Run2018B-15Feb2022_UL2018-v1.root"]
+			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv5_noIso_dijetsCR_JetHT_R18_InvMET100_noSV_v31_JetHT_MINIAOD_Run2018B-15Feb2022_UL2018-v1.root"]
 			sample = "JetHT18_RunB"
 			odir = "/"+sample
 		else:
