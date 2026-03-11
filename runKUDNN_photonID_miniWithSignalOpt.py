@@ -128,7 +128,8 @@ def runDNN(args):
     network_name += "_MINI_"+args.arch
     if(args.endcap):
     	network_name += "_endcapOnly";
-    elif(args.arch == "default"):
+
+    if(args.arch == "default"):
     	nodes = [64, 64, 64]
     elif(args.arch == "med32"):
     	nodes = [32, 32, 32] 
