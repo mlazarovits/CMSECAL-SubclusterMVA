@@ -81,13 +81,20 @@ class DataCleaner:
 		if(len(parquet_files) == len(subdirs)):
 			print("parquet_files",parquet_files)	
 		else:
-			print("# parquet_files",len(parquet_files),"with at least 1 sample chunked")
+			nfiles = -1
+			if(isinstance(parquet_files, list)):
+				nfiles = len(parquet_files)
+			else:
+				nfiles = parquet_files
+			print("# parquet_files",nfiles,"with at least 1 sample chunked")
 		if debug:
 			print("Files",parquet_files)
+		print("Files",parquet_files)
 		ddf = dd.read_parquet(parquet_files,blocksize=blocksize)
 		print("ddf cols",ddf.columns)
+		nrows = ddf.shape[0].compute()
 		t2 = time.perf_counter()
-		print("took",(t2-t1),"seconds to read data from parquet table, total # rows",ddf.shape[0].compute())
+		print("took",(t2-t1),"seconds to read data from parquet table, total # rows",nrows)
 		if ddf.shape[0].compute() == 0:
 			print(ddf.shape[0].compute(),"rows in parquet data, exiting")
 			exit()
@@ -96,7 +103,8 @@ class DataCleaner:
 		new_cols = [f"{self._obj}_EtaCenter" if col == f"{self._obj}_EtaCenter_{self._tag}" else col for col in new_cols]
 		new_cols = [f"{self._obj}_seedTime" if col ==  f"{self._obj}_seedTime_CMS" else col for col in new_cols]
 		ddf = ddf.rename(columns=dict(zip(ddf.columns, new_cols))) #inplace not supported for dask dfs!! (lazy execution remember??)
-		self.PrintStatsDask(ddf)
+		if self._printstats:
+			self.PrintStatsDask(ddf)
 		return ddf
 
 	def SetPrintStats(self, p):
@@ -126,15 +134,6 @@ class DataCleaner:
 			print("Total after unmatched/invalid label removal:", ddf.shape[0].compute())
 			self.PrintStatsDask(ddf)
 
-		#  Apply column cuts (e.g., Energy)
-		if "Energy" in ddf.columns:
-			print("Applying energy cut")
-			# Ensure ApplyColCut works with Dask: avoid .values
-			ddf = self.ApplyColCut("Energy", 30, ddf)
-			if prinstats:
-				print("Total after energy cut > 30:",ddf.shape[0].compute() )
-				self.PrintStatsDask(ddf)
-	
 		#  Drop rows with any NaNs
 		# Lazy operation; assign back
 		if dropna:
@@ -166,9 +165,15 @@ class DataCleaner:
 		return ddf
 
 
-		
+	def MakeEnergySum(self, evtcol, objcol, energycol):
+		ecol = self._data[energycol].apply(sum) 
+		e_col = "Energy"
+		if objcol == "sc_idx":
+			e_col = "SC_Energy_CMS"
+		self._data[e_col] = ecol
 
 	def ConvertToPandas(self, ddf):
+		print("Converting to pandas")
 		self._data = ddf.compute() 
 		print("ConvertToPandas - len self data",len(self._data))
 
