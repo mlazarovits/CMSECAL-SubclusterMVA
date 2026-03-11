@@ -32,6 +32,7 @@ class DeepNeuralNetwork(ModelBase):
 		self._lb = None
 		self._scaler = None
 		self._inputHists = None
+		self._obj = "Photon"
 
 	def __init__(self, data, nNodes, cols, catnames, catcolors, name = "model", extra = ""):
 		super().__init__()
@@ -41,6 +42,7 @@ class DeepNeuralNetwork(ModelBase):
 		self._name = name
 		self._path = "results/"+self._name
 		self._catnames = catnames 
+		self._obj = "Photon"
 		self._catcolors = catcolors
 		self._inputHists = []
 		self._extra_label = extra
@@ -62,6 +64,7 @@ class DeepNeuralNetwork(ModelBase):
 		rand = 43 #change to random number to randomize
 		#fir onehot enocoder
 		self._features = cols 
+		print("self._features",self._features)
 		if data is not None:
 			x, y = self.StripLabels(data)
 			#80/20 train/test split
@@ -100,12 +103,12 @@ class DeepNeuralNetwork(ModelBase):
 		
 
 
-	def VizInputs(self):
+	def VizInputs(self, label = "Training Samples"):
 		indata = self._xtrain_df.drop(columns=["sample"])
 		cols = self._features
 		cols.append('label')
 		indata = indata[cols]
-		self.VizSamples(indata,"Training Samples") 
+		self.VizSamples(indata,label) 
 
 	def VizTestSample(self):
 		indata = self._xtest_df.drop(columns=["sample"])	
@@ -203,14 +206,22 @@ class DeepNeuralNetwork(ModelBase):
 		for j, l in enumerate(self._catnames.keys()):
 			mask = indata['label'] == l
 			histdata = indata[mask][col]
-			histmin.append(histdata.min())
-			histmax.append(histdata.max())
+			#clip data to be within pm 2std of mean
+			histmean = np.mean(histdata)
+			hist_std = np.std(histdata)
+			histmin.append(max(histdata.min(), histmean - hist_std))
+			histmax.append(min(histdata.max(), histmean + hist_std))
 		bins = np.linspace(min(histmin), max(histmax), 50)
 		for j, l in enumerate(self._catnames.keys()):
 			mask = indata['label'] == l
 			histdata = indata[mask][col].to_numpy()
+			#mask array
 			ns, bins, _ = plt.hist(histdata,label=self._catnames[l],log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
-		plt.title(col)
+		plottitle = col[col.find("Photon_")+7:]
+		plottitle = plottitle[:plottitle.find("_CMS")]
+		if plottitle.find("OvPhoton_Pt") != -1:
+			plottitle = plottitle.replace("OvPhoton_Pt","/Pt")
+		plt.title(plottitle)
 		plt.legend()
 		print("Saving "+col+" plot to",plotname)
 		plt.savefig(plotname,format=self._form)

@@ -28,7 +28,7 @@ class ConvNeuralNetwork(ModelBase):
 		self._lb = None
 		self._inputHists = None
 		self._tag = ""
-
+		self._obj = "SC"
 	def __init__(self, data, nNodes, name = "model", tag = "", extra = ""):
 		super().__init__()
 		self._bestModel = None
@@ -36,6 +36,7 @@ class ConvNeuralNetwork(ModelBase):
 		self._lowestValLoss = 999
 		self._form = "pdf"
 		self._name = name
+		self._obj = "SC"
 		self._extra_label = extra
 		if tag != "":
 			self._name += "_"+tag
@@ -319,8 +320,8 @@ class ConvNeuralNetwork(ModelBase):
 		no_pred_physbkg = self._xtest_df[self._xtest_df["pred_label"] != 1]
 		self.VizTimeVsEta(no_pred_physbkg,"Test Sample No Predicted Phys Bkg")
 
-	def VizInputs(self):
-		self.VizSamples(self._xtrain, self._ytrain, "Training Samples")
+	def VizInputs(self, label = "Training Samples"):
+		self.VizSamples(self._xtrain, self._ytrain, label)
 
 
 	#can give self._xtrain_df or test version

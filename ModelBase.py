@@ -95,7 +95,7 @@ class ModelBase(ABC):
 		#vals = DeepExplainer(self._model, background).shap_values(self._xtrain[:nsamp])
 		#summary_plot(vals[0],self._xtrain[:nsamp],feature_names=self._features,show=False)
 		#print("Saving SHAP plot to",self._path+"/SHAPplot."+self._form)
-		FindDiscThresh#plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
+		#plt.savefig(self._path+"/SHAPplot."+self._form,format=self._form)
 		#plt.close()
 
 	def FindDiscThresh(self, fpr_thresh, ncat, fpr_cat, tpr_cat, thresh_cat, extra = ""):
@@ -118,9 +118,10 @@ class ModelBase(ABC):
 		#need to process ytrue and ypred s.t. they are given to roc_curve as 1D arrays of assignment (ytrue - 0 or 1) and prediction (score of 'signal'/positive class)
 		ypred_1D = [ypred[y][pos_label] for y, _ in enumerate(ypred)]
 		#print("ypred_1D",ypred_1D)
-		#print("ytrue",ytrue[0],"ypred",ypred_1D[0],ypred.flatten()[0],ypred[0])
+		print("ytrue",ytrue.flatten()[0],"ypred",ypred_1D[0],ypred.flatten()[0],ypred[0])
 		#dont need to give 'pos label' to roc_curve since those values have been selected above
-		fpr, tpr, thresh = roc_curve(ytrue.flatten(), ypred_1D,pos_label = pos_label)
+		#yes i do becase if the scores are [0.1, 0.9] for ytrue [1], selecting for class 0 compares 0.1 to 1, which is a good match if pos_label = 0 and a good match if pos_label = 1 for class 1 (ie 0.9 to 1)
+		fpr, tpr, thresh = roc_curve(ytrue.flatten(), ypred_1D,pos_label=pos_label)
 		ytrue_test = np.zeros(ytrue[0].shape)
 		#put in one-hot encoding
 		poscat = self._lb.inverse_transform(np.array(pos_label))[0]
@@ -464,17 +465,19 @@ class ModelBase(ABC):
 		#self._model.load_weights(files[min(keys)])	
 		self._model = load_model(files[min(keys)])	
 		#check that correct normalization parameters were loaded
-		norm_layer = self._model.get_layer("normalization_layer")
-		print("Loaded normalization layer mean",norm_layer.mean.numpy())
-		print("Loaded normalization layer var",norm_layer.variance.numpy())
+		layer_names = [layer.name for layer in self._model.layers]
+		if "conv_layer0" not in layer_names:
+			norm_layer = self._model.get_layer("normalization_layer")
+			print("Loaded normalization layer mean",norm_layer.mean.numpy())
+			print("Loaded normalization layer var",norm_layer.variance.numpy())
 
 	def EnergySplitROC(self, pos_label,fpr_threshes=[], fpr_thresh=-1, fextra=""):
 		#do preprocessing for energy-separated roc curves
 		colors = ["blue","green","purple","pink","orange"]
 		print("cols",self._xtest_df.columns)
-		energies = self._xtest_df['Photon_Energy_CMS'].to_numpy()
+		energies = self._xtest_df[f"{self._obj}_Energy_CMS"].to_numpy()
 		#bin energies such that each bin has even statistics
-		bins, edges = pd.qcut(self._xtest_df['Photon_Energy_CMS'],q=5,labels=False, retbins=True)
+		bins, edges = pd.qcut(self._xtest_df[f"{self._obj}_Energy_CMS"],q=5,labels=False, retbins=True)
 		print("Creating energy-separate ROC curves with energy bins",edges,"for pos_label",pos_label)
 		#apply binning to df via another column
 		self._xtest_df["energy_bin"] = bins
@@ -584,16 +587,28 @@ class ModelBase(ABC):
 
 		discr_threshs = []
 
-		scores_true4 = self._xtest_df[self._xtest_df["label"] == 4]["ypred_scores"].to_numpy()
-		scores_true4 = np.stack(scores_true4)		
-		scores_true6 = self._xtest_df[self._xtest_df["label"] == 6]["ypred_scores"].to_numpy()
-		scores_true6 = np.stack(scores_true6)		
+		if(4 in labels_set and 6 in labels_set):
+			scores_true4 = self._xtest_df[self._xtest_df["label"] == 4]["ypred_scores"].to_numpy()
+			scores_true4 = np.stack(scores_true4)		
+			scores_true6 = self._xtest_df[self._xtest_df["label"] == 6]["ypred_scores"].to_numpy()
+			scores_true6 = np.stack(scores_true6)		
 
-		print(scores_true4.shape,scores_true4[0])
-		hep.cms.label("Preliminary", data=True, lumi=None, com=13) # ax can be implicit
-		plt.xlabel("predicted score")
-		plt.hist(scores_true4[:,1],label="true iso",histtype='step',bins=50,log=True,density=True)
-		plt.hist(scores_true6[:,1],label="true nonIso",histtype='step',bins=50,log=True,density=True)
+			print(scores_true4.shape,scores_true4[0])
+			hep.cms.label("Preliminary", data=True, lumi=None, com=13) # ax can be implicit
+			plt.xlabel("predicted score")
+			plt.hist(scores_true4[:,1],label="true iso",histtype='step',bins=50,log=True,density=True)
+			plt.hist(scores_true6[:,1],label="true nonIso",histtype='step',bins=50,log=True,density=True)
+		else:
+			
+			hep.cms.label("Preliminary", data=True, lumi=None, com=13) # ax can be implicit
+			plt.xlabel("predicted score")
+			for label in labels_set:
+				scores_true = self._xtest_df[self._xtest_df["label"] == label]["ypred_scores"].to_numpy()
+				scores_true = np.stack(scores_true)		
+				print(scores_true.shape,scores_true[0])
+				plt.hist(scores_true[:,1],label=f"true {self._catnames[label]}",histtype='step',bins=50,log=True,density=True)
+
+
 		plt.legend()
 		#plt.show()
 		plotname = self._path+"/predScore_testSample"
