@@ -37,28 +37,41 @@ def main(args):
 	sample = ""
 	label = -999
 	odir = ""
-	if args.proc == "EGamma" and args.era == "C":
+	if args.proc == "DoubleEG" and args.era == "B":
+		if args.year == "2017":
+			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv5_noIso_GJetsCR_DoubleEG_R17_InvMetPho30_noSV_v31_DoubleEG_MINIAOD_Run2017C-09Aug2019_UL2017-v1.root"]
+			sample = "DoubleEG17_RunB"
+			odir = "/"+sample
+		else:
+			print("Process and year not found")
+			exit()
+	elif args.proc == "EGamma" and args.era == "C":
 		if args.year == "2018":
-			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p3_noIso_GJetsCR_EGamma_R18_InvMetPho30_NoSV_v31_EGamma_AOD_Run2018C.root"]
+			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv5_noIso_GJetsCR_EGamma_R18_InvMetPho30_noSV_v31_EGamma_MINIAOD_Run2018C-12Nov2019_UL2018-v2.root"]
 			sample = "EGamma18_RunC"
 			odir = "/"+sample
 		else:
 			print("Process and year not found")
 			exit()
-	if args.proc == "JetHT" and args.year == "2018":
-		if args.era == "C":
-			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p3_noIso_diJetsCR_JetHT_R18_InvMET100_nolumimask_v31_JetHT_AOD_Run2018C-15Feb2022_UL2018-v1.root"]
-			sample = "JetHT18_RunC"
-			odir = "/"+sample
-		elif args.era == "B":
-			#files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv4p4_noIso_dijetsCR_JetHT_R18_InvMET100_v31_JetHT_AOD_Run2018B-15Feb2022_UL2018-v1.root"]
-			files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv5_noIso_dijetsCR_JetHT_R18_InvMET100_noSV_v31_JetHT_MINIAOD_Run2018B-15Feb2022_UL2018-v1.root"]
-			sample = "JetHT18_RunB"
-			odir = "/"+sample
+	elif args.proc == "JetHT":
+		if args.year == "2018":
+			#if args.era == "C":
+			#	files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/"]
+			#	sample = "JetHT18_RunC"
+			#	odir = "/"+sample
+			if args.era == "B":
+				files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv5_noIso_dijetsCR_JetHT_R18_InvMET100_noSV_v31_JetHT_MINIAOD_Run2018B-15Feb2022_UL2018-v1.root"]
+				sample = "JetHT18_RunB"
+				odir = "/"+sample
+		elif args.year == "2017":
+			if args.era == "C":
+				files = ["root://cmseos.fnal.gov//store/user/malazaro/LLPMVA_TrainingSamples/condor_photons_defaultv5_noIso_dijetsCR_JetHT_R17_InvMET100_noSV_v31_JetHT_MINIAOD_Run2017C-09Aug2019_UL2017-v1.root"]
+				sample = "JetHT17_RunC"
+				odir = "/"+sample
 		else:
 			print("Process and year not found")
 			exit()
-	if args.proc == "GlGl":
+	elif args.proc == "GlGl":
 		files = make_sms_samples_photons()
 		sample = ""
 		if args.obj == "SC":
@@ -66,7 +79,7 @@ def main(args):
 		if args.obj == "photon":
 			label = 4
 		odir = "/SMS_GlGl"
-	if args.proc == "SqSq":
+	elif args.proc == "SqSq":
 		files = make_sms_samples_photons()
 		sample = ""
 		if args.obj == "SC":
@@ -74,15 +87,18 @@ def main(args):
 		if args.obj == "photon":
 			label = 4
 		odir = "/SMS_SqSq"
+	elif args.proc == "MET":
+		print("these samples haven't been set yet....")
+		exit()
+	else:
+		print("Given process",args.proc,"has not been tracked yet")
+		exit()
 
 	reader = None
 	if args.test:
 		reader = TTreeReader(args.obj, objType,"_test"+odir)
 	else:
 		reader = TTreeReader(args.obj, objType, odir)
-	if args.proc == "MET":
-		print("these samples haven't been set yet....")
-		exit()
 
 
 	if args.obj == "SC":
@@ -98,7 +114,7 @@ def main(args):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--obj",help='objects to run over',choices=["photon","SC"],required=True)
-	parser.add_argument("--proc",help='process to use',choices=['EGamma','JetHT','GlGl','MET'],required=True)
+	parser.add_argument("--proc",help='process to use',choices=['EGamma','JetHT','GlGl','MET', 'DoubleEG'],required=True)
 	parser.add_argument("--era")
 	parser.add_argument("--year",choices=['2017','2018'])
 	parser.add_argument("--test",default=False,help="make test data",action='store_true')
