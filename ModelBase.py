@@ -483,12 +483,8 @@ class ModelBase(ABC):
 		self._xtest_df["energy_bin"] = bins
 		print("bins",self._xtest_df["energy_bin"].unique(),"edges",edges)
 		ncat_score = int(self._lb.inverse_transform(np.array(pos_label))[0])
-		if ncat_score == 4:
-			bkgclass = 6
-		elif ncat_score == 6:
-			bkgclass = 4
-		else:
-			return
+		print("ncat_score",ncat_score,int(self._lb.inverse_transform(np.array(1-pos_label))[0]))
+		bkgclass = int(self._lb.inverse_transform(np.array(1-pos_label))[0])
 		fprs, tprs, labels = [], [], []
 		extralab = "EnergySplit"
 		if fextra != "":
@@ -617,6 +613,7 @@ class ModelBase(ABC):
 		plt.savefig(plotname+"."+self._form,format=self._form)
 		
 		nclasses = len(ypred[0])
+		print("nclasses",nclasses)
 		if nclasses == 2:
 			labels = []
 			classes = []
