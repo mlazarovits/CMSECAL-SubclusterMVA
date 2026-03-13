@@ -38,7 +38,7 @@ def runCNN(args):
 	printstats = False
 	cleaner = DataCleaner(args.parquetpath, "SC", args.SCtype, printstats)
 	blocksize = args.blocksize
-	if(args.testNetwork is None):
+	if(args.testNetwork is None or args.testNetwork == "training_sample"):
 		subdirs = []
 	elif("SMS" in args.testNetwork):
 		subdirs = [["METPD18_RunC","*"],[args.testNetwork,"*"]]
@@ -46,35 +46,36 @@ def runCNN(args):
 		print("test scenario",args.testNetwork,"does not have associated test data")
 		exit()
 	dask_df = cleaner.GetDaskData(subdirs, blocksize=blocksize, debug=args.debug)
-	if("SMS" in args.testNetwork):
-		dask_df_cleaned = cleaner.CleanDaskData(dask_df)
-		all_sms_mass_points = set() 
-		for subdir in subdirs:
-			if "SMS" not in subdir:
-				continue
-			sms_samples = get_unique_samples(args.parquetpath+"/"+subdir)
-			all_sms_mass_points.update(sms_samples)
-		sms_samples = get_unique_samples(args.parquetpath+"/"+args.testNetwork)
-		#cap samples per mass point as to not overwhelm the BH contribution
-		#can set based on how many mass points there are - ie nsample = 55442 / len(sms_samples)
-		if "SqSq" in args.testNetwork:
-			nsample = 100
-		elif "GlGl" in args.testNetwork:
-			nsample = 500
-		else:
-			nsample = 500
-		if len(sms_samples) < 1:
-			dask_df_downsampled = dask_df_cleaned
-		else:
-			for sample in sms_samples:
-				if args.debug and "mGl_1500_mN2_500_mN1_100" not in sample and "GlGl" in args.testNetwork:
-					continue
-				if args.debug and "mGl_1700_mN2_1500_mN1_100_ct0p1" not in sample and "SqSq" in args.testNetwork:
-					continue
-				dask_df_cleaned = cleaner.CapSampleDask(dask_df_cleaned,sample,500)
-		cleaner.ConvertToPandas(dask_df_cleaned)
-	else:
-		cleaner.CleanAndConvert(dask_df)
+	#if("SMS" in args.testNetwork):
+	#	dask_df_cleaned = cleaner.CleanDaskData(dask_df)
+	#	all_sms_mass_points = set() 
+	#	for subdir in subdirs:
+	#		if "SMS" not in subdir:
+	#			continue
+	#		sms_samples = get_unique_samples(args.parquetpath+"/"+subdir)
+	#		all_sms_mass_points.update(sms_samples)
+	#	sms_samples = get_unique_samples(args.parquetpath+"/"+args.testNetwork)
+	#	#cap samples per mass point as to not overwhelm the BH contribution
+	#	#can set based on how many mass points there are - ie nsample = 55442 / len(sms_samples)
+	#	if "SqSq" in args.testNetwork:
+	#		nsample = 100
+	#	elif "GlGl" in args.testNetwork:
+	#		nsample = 500
+	#	else:
+	#		nsample = 500
+	#	if len(sms_samples) < 1:
+	#		dask_df_downsampled = dask_df_cleaned
+	#	else:
+	#		for sample in sms_samples:
+	#			if args.debug and "mGl_1500_mN2_500_mN1_100" not in sample and "GlGl" in args.testNetwork:
+	#				continue
+	#			if args.debug and "mGl_1700_mN2_1500_mN1_100_ct0p1" not in sample and "SqSq" in args.testNetwork:
+	#				continue
+	#			dask_df_cleaned = cleaner.CapSampleDask(dask_df_cleaned,sample,500)
+	#	cleaner.ConvertToPandas(dask_df_cleaned)
+	#else:
+	#	cleaner.CleanAndConvert(dask_df)
+	cleaner.CleanAndConvert(dask_df)
 	cleaner.SelectClass(1,["EGamma","SMS"]) #choose for a certain class (first arg) to only come from sample (second arg)
 	cleaner.SelectClass(2,"METPD")
 	if not args.addSpikes:

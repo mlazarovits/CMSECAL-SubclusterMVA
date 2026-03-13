@@ -58,7 +58,7 @@ def runDNN(args):
     if args.endcap:
     	cleaner.EndcapOnly("Photon_EtaCenter")
     else:
-    	cleaner.BarrelOnly("Photon_EtaCenter")	
+    	cleaner.BarrelOnly("Photon_EtaCenter")
     classes_to_balance = [4,6]
     cleaner.BalanceClasses(classes_to_balance)
     

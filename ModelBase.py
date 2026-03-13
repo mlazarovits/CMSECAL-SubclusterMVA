@@ -32,6 +32,7 @@ class ModelBase(ABC):
 		self._test_gen = None
 		self._best_model = None
 		self._discr_info = None
+		self._obj = None
 		super().__init__()
 	
 	@abstractmethod
@@ -184,10 +185,12 @@ class ModelBase(ABC):
 			ylabel="Signal class efficiency (TPR)",#"Signal efficiency",
 		)
 		ax.set_title(self._name+"\n"+sigclassname+" (sig) vs "+bkgclassname+" (bkg) ROC",fontsize=16)
-		#ax.set_ylim([0.95, 1.0])
-		#ax.set_xlim([1e-6,0.01])
-		ax.set_ylim([1e-6, 1.0])
-		ax.set_xlim([1e-6,1.0])
+		if(self._obj == "SC"):
+			ax.set_ylim([0.95, 1.0])
+			ax.set_xlim([1e-6,0.01])
+		else:	
+			ax.set_ylim([1e-6, 1.0])
+			ax.set_xlim([1e-6,1.0])
 		ax.grid()
 		if(labels != [""]):
 			ax.legend()
