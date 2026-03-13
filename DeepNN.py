@@ -209,18 +209,23 @@ class DeepNeuralNetwork(ModelBase):
 			#clip data to be within pm 2std of mean
 			histmean = np.mean(histdata)
 			hist_std = np.std(histdata)
-			histmin.append(max(histdata.min(), histmean - hist_std))
-			histmax.append(min(histdata.max(), histmean + hist_std))
+			histmin.append(max(histdata.min(), histmean - 10*hist_std))
+			histmax.append(min(histdata.max(), histmean + 10*hist_std))
 		bins = np.linspace(min(histmin), max(histmax), 50)
 		for j, l in enumerate(self._catnames.keys()):
 			mask = indata['label'] == l
 			histdata = indata[mask][col].to_numpy()
 			#mask array
-			ns, bins, _ = plt.hist(histdata,label=self._catnames[l],log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
+			leg_label = self._catnames[l]
+			if "SMS" in fextra and leg_label == "isoBkg":
+				leg_label = "SMS photons"
+			ns, bins, _ = plt.hist(histdata,label=leg_label,log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
 		plottitle = col[col.find("Photon_")+7:]
 		plottitle = plottitle[:plottitle.find("_CMS")]
 		if plottitle.find("OvPhoton_Pt") != -1:
 			plottitle = plottitle.replace("OvPhoton_Pt","/Pt")
+		if fextra != "":
+			plottitle = fextra+"\n"+plottitle	 
 		plt.title(plottitle)
 		plt.legend()
 		print("Saving "+col+" plot to",plotname)
