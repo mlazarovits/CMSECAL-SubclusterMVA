@@ -164,6 +164,7 @@ def runDNN(args):
     
     model = DeepNeuralNetwork(data,nodes,cols,catToName,catToColor,network_name,extra_name)
     model.BuildModel()
+    model.VizInputs()
     if(args.testNetwork is not None):
         print("Evaluating network",network_name,"on test sample",subdirs)
         model.VizInputs(extra_name)
@@ -172,7 +173,6 @@ def runDNN(args):
         return
     if(args.dryRun):
     	exit()
-    model.VizInputs()
     model.CompileModel()
     model.summary()
     #input is TrainModel(epochs=1,oname="",int:verb=1)

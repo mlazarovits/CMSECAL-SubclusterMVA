@@ -8,7 +8,24 @@ import os
 import subprocess
 import numpy as np
 import pandas as pd
+import mplhep as hep
 
+obs_labels = {
+	"EtaSig":r"$\sigma_{\eta,\eta}$",
+	"PhiSig":r"$\sigma_{\phi,\phi}$",
+	"EtaPhiCov":r"$\sigma_{\eta, \phi}$",
+	"minorLength":"minor length",
+	"majorLength":"major length",
+	"ecalRHSumEtConeDR04OvPhoton_Pt":"Relative ECAL Rechit Isolation",
+	"hcalTowerSumEtConeDR04OvPhoton_Pt":"Relative HCAL Tower Isolation",
+	"trkSumPtSolidConeDR04OvPhoton_Pt":"Relative Track Solid Cone Isolation",
+	"trkSumPtHollowConeDR04OvPhoton_Pt":"Relative Track Hollow Cone Isolation",
+	"hadTowOverEMOvPhoton_Pt":"Relative HCAL Tower/EM Isolation"
+}
+plot_catlabels = {
+	"isoBkg":"Isolated Photons",
+	"nonIsoBkg":"Non-isolated Photons"
+}
 class DeepNeuralNetwork(ModelBase):
 	def __init__(self):
 		super().__init__()
@@ -108,6 +125,10 @@ class DeepNeuralNetwork(ModelBase):
 		cols = self._features
 		cols.append('label')
 		indata = indata[cols]
+		if "endcap" in self._name:
+			label += " Endcap"
+		else:
+			label += " Barrel"
 		self.VizSamples(indata,label) 
 
 	def VizTestSample(self):
@@ -206,12 +227,16 @@ class DeepNeuralNetwork(ModelBase):
 		for j, l in enumerate(self._catnames.keys()):
 			mask = indata['label'] == l
 			histdata = indata[mask][col]
-			#clip data to be within pm 2std of mean
+			print(len(histdata),"samples for label",l,"col",col)
 			histmean = np.mean(histdata)
 			hist_std = np.std(histdata)
-			histmin.append(max(histdata.min(), histmean - 10*hist_std))
-			histmax.append(min(histdata.max(), histmean + 10*hist_std))
+			histmin.append(max(histdata.min(), histmean - 15*hist_std))
+			histmax.append(min(histdata.max(), histmean + 15*hist_std))
 		bins = np.linspace(min(histmin), max(histmax), 50)
+		cmslabel = "Preliminary"
+		if "SMS" in fextra:
+			cmslabel = "Preliminary Simulation"
+		hep.cms.label(llabel=cmslabel,com="13")
 		for j, l in enumerate(self._catnames.keys()):
 			mask = indata['label'] == l
 			histdata = indata[mask][col].to_numpy()
@@ -219,15 +244,30 @@ class DeepNeuralNetwork(ModelBase):
 			leg_label = self._catnames[l]
 			if "SMS" in fextra and leg_label == "isoBkg":
 				leg_label = "SMS photons"
+			else:
+				leg_label = plot_catlabels[leg_label]
 			ns, bins, _ = plt.hist(histdata,label=leg_label,log=True,bins=bins,histtype=u'step',color = self._catcolors[l])
 		plottitle = col[col.find("Photon_")+7:]
 		plottitle = plottitle[:plottitle.find("_CMS")]
-		if plottitle.find("OvPhoton_Pt") != -1:
-			plottitle = plottitle.replace("OvPhoton_Pt","/Pt")
+		plottitle = obs_labels[plottitle]
+		#plt.title(plottitle)
+		plt.xlabel(plottitle)
+		#plt.legend()
+		ax = plt.gca()
+		legend = ax.legend()
 		if fextra != "":
-			plottitle = fextra+"\n"+plottitle	 
-		plt.title(plottitle)
-		plt.legend()
+			fextra = fextra.replace("_"," ")
+			bbox = legend.get_window_extent()
+			bbox_axes = bbox.transformed(ax.transAxes.inverted())
+			ax.text(
+			    bbox_axes.x0+0.01, bbox_axes.y0-0.01,                # x, y in axes coordinates
+			    fextra,         # Text to display
+			    transform=ax.transAxes,
+			    fontsize=20,
+			    verticalalignment="top",
+			    horizontalalignment="left"
+			)
+			#plottitle = fextra+" "+plottitle	 
 		print("Saving "+col+" plot to",plotname)
 		plt.savefig(plotname,format=self._form)
 		plt.close()		
