@@ -36,7 +36,9 @@ def runCNN(args):
 		print("Setting kerebos credentials")
 		os.environ["KRB5CCNAME"] = "API:"
 	printstats = False
-	cleaner = DataCleaner(args.parquetpath, "SC", args.SCtype, printstats)
+	if args.dryRun:
+		printstats = True
+	cleaner = DataCleaner(args.parquetpath, "SC", "CMS", printstats)
 	blocksize = args.blocksize
 	if(args.testNetwork is None or args.testNetwork == "training_sample"):
 		subdirs = []
@@ -146,7 +148,7 @@ def runCNN(args):
 		if args.testNetwork == "training_sample": 
 			extra_name = ""
 
-	model = ConvNeuralNetwork(data,filters,network_name,args.SCtype,extra_name)
+	model = ConvNeuralNetwork(data,filters,network_name,"CMS",extra_name)
 	model.BuildModel()
 	model.SetCategoryNames(catToName,catToColor)
 	if(args.testNetwork):
@@ -177,7 +179,6 @@ def main():
 	parser.add_argument('--nEpochs',help="number of epochs for training",default=20)
 	parser.add_argument('--addSpikes',help='include spikes in training',action='store_true',default=False)
 	parser.add_argument("--extra",'-e',help='extra string for network name')
-	parser.add_argument("--SCtype",help='type of SCs to run over',choices=["CMS","BHC","BHCPUCleaned"],default="CMS")
 	parser.add_argument('--testNetwork',help='evaluate trained network specified by other flags',default=None,choices=['SMS_GlGl','2017','training_sample'])
 	parser.add_argument("--dryRun",help="dry run - stats only (don't run network)",action='store_true',default=False)
 	parser.add_argument("--debug",help="run over only a few parquet files per sample to debug faster",action='store_true',default=False)

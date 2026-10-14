@@ -13,6 +13,8 @@ def runDNN(args):
 		print("Setting kerebos credentials")
 		os.environ["KRB5CCNAME"] = "API:"
 	printstats = False
+	if args.dryRun:
+		printstats = True
 	cleaner = DataCleaner(args.parquetpath, "Photon", "CMS", printstats)
 	subdirs = [["JetHT18_RunB","*"],["JetHT18_RunC","*"],["EGamma18_RunC","*"]]
 	if args.endcap: #take only subset for endcap since the stats aren't that bad without iso presel
